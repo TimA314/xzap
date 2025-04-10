@@ -1,0 +1,11 @@
+{
+    "name": "xzap",
+    "version": "1.0.0",
+    "description": "Zap X posts with Lightning payments via Nostr",
+    "scripts": {
+      "start": "echo 'Load into browser manually'"
+    },
+    "dependencies": {
+      "nostr-tools": "^1.17.0"
+    }
+  }
