@@ -1,24 +1,43 @@
 console.log('popup.js loaded successfully');
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', () => {
   console.log('DOM fully loaded');
-  console.log('selectImageButton:', document.getElementById('selectImageButton'));
-  console.log('imageInputParse:', document.getElementById('imageInputParse'));
 
-  // Load stored result when popup opens
-  chrome.storage.local.get(['lnurlResult'], function(data) {
-    if (data.lnurlResult) {
-      document.getElementById('result').textContent = data.lnurlResult;
-    }
-  });
+  // Function to shorten LNURL for display
+  function shortenLnurl(lnurl) {
+    return lnurl.length > 20 ? `${lnurl.slice(0, 6)}...${lnurl.slice(-6)}` : lnurl;
+  }
 
-  document.getElementById('selectImageButton').addEventListener('click', function() {
-    console.log('Select Image button clicked');
-    document.getElementById('imageInputParse').click();
-  });
+  // Get DOM elements
+  const imageInputParse = document.getElementById('imageInputParse');
+  const resultElement = document.getElementById('result');
+  console.log('imageInputParse:', imageInputParse);
+  console.log('resultElement:', resultElement);
 
-  document.getElementById('imageInputParse').addEventListener('change', function(event) {
-    try {
+  // Load stored result from chrome.storage.local
+  if (resultElement) {
+    chrome.storage.local.get(['lnurlResult'], (data) => {
+      if (data.lnurlResult) {
+        // Extract the LNURL from the stored string (remove "LN Address Found: " prefix)
+        const storedLnurl = data.lnurlResult.startsWith('LN Address Found: ')
+          ? data.lnurlResult.slice(18)
+          : data.lnurlResult;
+        const shortened = shortenLnurl(storedLnurl);
+        resultElement.textContent = `LN Address Found: ${shortened}`;
+        console.log('Loaded stored result:', data.lnurlResult);
+        console.log('Displayed shortened LNURL:', shortened);
+      } else {
+        console.log('No stored result found');
+        resultElement.textContent = 'No previous result found.';
+      }
+    });
+  } else {
+    console.error('resultElement not found');
+  }
+
+  // Handle file selection and processing
+  if (imageInputParse) {
+    imageInputParse.addEventListener('change', (event) => {
       console.log('File selected');
       const file = event.target.files[0];
       if (!file) {
@@ -27,69 +46,78 @@ document.addEventListener('DOMContentLoaded', function() {
       }
 
       const reader = new FileReader();
-      reader.onload = function(e) {
-        try {
-          console.log('FileReader onload triggered');
-          const img = new Image();
-          img.src = e.target.result;
+      reader.onload = (e) => {
+        console.log('FileReader onload triggered');
+        const img = new Image();
+        img.src = e.target.result;
 
-          img.onload = function() {
-            try {
-              console.log('Image loaded');
-              const canvas = document.createElement('canvas');
-              canvas.width = img.width;
-              canvas.height = img.height;
-              const ctx = canvas.getContext('2d');
-              ctx.drawImage(img, 0, 0);
-              const imageData = ctx.getImageData(0, 0, img.width, img.height);
-              const data = imageData.data;
+        img.onload = () => {
+          console.log('Image loaded');
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
 
-              console.log('Extracting bits');
-              let bits = '';
-              for (let i = 0; i < data.length && bits.length < 4096; i++) {
-                bits += data[i] & 1;
-              }
-              console.log('Bits extracted:', bits);
+          // Extract bits from image data
+          console.log('Extracting bits');
+          const imageData = ctx.getImageData(0, 0, img.width, img.height);
+          const data = imageData.data;
+          let bits = '';
+          for (let i = 0; i < data.length && bits.length < 4096; i++) {
+            bits += data[i] & 1; // Get least significant bit
+          }
+          console.log('Bits extracted:', bits);
 
-              let lnurl = '';
-              for (let i = 0; i < bits.length; i += 8) {
-                const byte = bits.slice(i, i + 8);
-                if (byte.length < 8) break;
-                const charCode = parseInt(byte, 2);
-                if (charCode === 0) break; // Stop at null terminator
-                lnurl += String.fromCharCode(charCode);
-              }
-              lnurl = lnurl.trim();
-              console.log('Extracted LNURL:', lnurl);
+          // Convert bits to LNURL string
+          let lnurl = '';
+          for (let i = 0; i < bits.length; i += 8) {
+            const byte = bits.slice(i, i + 8);
+            if (byte.length < 8) break;
+            const charCode = parseInt(byte, 2);
+            if (charCode === 0) break; // Stop at null terminator
+            lnurl += String.fromCharCode(charCode);
+          }
+          lnurl = lnurl.trim();
+          console.log('Extracted LNURL:', lnurl);
 
-              let resultText;
-              if (lnurl.startsWith('lnurl')) {
-                resultText = `LN Address Found: ${lnurl}`;
+          // Update result and store it
+          let resultText;
+          if (lnurl.startsWith('lnurl') || lnurl.startsWith('lnbc')) {
+            const shortened = shortenLnurl(lnurl);
+            resultText = `LN Address Found: ${shortened}`;
+          } else {
+            resultText = 'No LN Address Found.';
+          }
+
+          if (resultElement) {
+            resultElement.textContent = resultText;
+            console.log('Result set:', resultText);
+
+            // Store the full LNURL to preserve data integrity
+            chrome.storage.local.set({ 'lnurlResult': lnurl }, () => {
+              if (chrome.runtime.lastError) {
+                console.error('Error storing result:', chrome.runtime.lastError);
               } else {
-                resultText = 'No LN Address Found.';
+                console.log('Result stored in chrome.storage.local:', lnurl);
               }
-              document.getElementById('result').textContent = resultText;
-              console.log('Result set');
+            });
+          } else {
+            console.error('resultElement not found for result update');
+          }
+        };
 
-              // Store the result in chrome.storage.local
-              chrome.storage.local.set({ 'lnurlResult': resultText }, function() {
-                console.log('Result stored in chrome.storage.local');
-              });
-            } catch (error) {
-              console.error('Error in image onload:', error);
-            }
-          };
+        img.onerror = () => {
+          console.error('Error loading image');
+        };
+      };
 
-          img.onerror = function() {
-            console.error('Error loading image');
-          };
-        } catch (error) {
-          console.error('Error in FileReader onload:', error);
-        }
+      reader.onerror = () => {
+        console.error('Error reading file');
       };
       reader.readAsDataURL(file);
-    } catch (error) {
-      console.error('Error in file change event:', error);
-    }
-  });
+    });
+  } else {
+    console.error('imageInputParse not found');
+  }
 });
