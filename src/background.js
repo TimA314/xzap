@@ -1,0 +1,1 @@
+console.log('XZap background script loaded');

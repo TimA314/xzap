@@ -1,5 +1,8 @@
 import { generatePrivateKey, getPublicKey, relayInit } from 'nostr-tools';
 
+const browser = window.chrome || window.browser;
+
+
 document.addEventListener('DOMContentLoaded', () => {
   const relay = relayInit('wss://relay.damus.io');
   relay.connect().then(() => console.log('Relay connected'));
