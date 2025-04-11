@@ -2,10 +2,38 @@
 <html>
 <head>
   <title>XZap</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 10px; width: 300px; }
+    button { margin: 5px; padding: 5px 10px; }
+    input { margin: 5px; }
+    #result { color: #333; }
+  </style>
 </head>
 <body>
-  <h1>XZap Extension</h1>
-  <p><a href="etch.html" target="_blank">Etch LNURL into Profile Image</a></p>
+  <h3>XZap Tools</h3>
+  
+  <!-- Etch LNURL into Image -->
+  <div>
+    <h4>Etch LNURL</h4>
+    <input type="text" id="lnurlInput" placeholder="Enter LNURL (e.g., lnurl1test)">
+    <input type="file" id="imageInputEtch" accept="image/*">
+    <button id="etchButton">Etch LNURL</button>
+  </div>
+
+  <!-- Parse LN Address from Image -->
+  <div>
+    <h4>Parse LN Address</h4>
+    <button id="selectImageButton">Select Image</button>
+    <input type="file" id="imageInputParse" accept="image/*" style="display: none;">
+    <p id="result">Result will appear here.</p>
+  </div>
+  
+  <!-- Scan Page for LN URLs -->
+  <div>
+    <h4>Scan Page</h4>
+    <button id="scanButton">Scan Page for LN URLs</button>
+  </div>
+
   <script src="popup.js"></script>
 </body>
 </html>

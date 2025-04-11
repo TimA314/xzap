@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "XZap",
   "version": "1.0",
-  "permissions": ["activeTab", "storage"],
+  "permissions": ["activeTab", "storage", "scripting"],
   "content_scripts": [
     {
       "matches": ["https://x.com/*"],
