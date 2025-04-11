@@ -11,28 +11,63 @@ document.addEventListener('DOMContentLoaded', () => {
   // Get DOM elements
   const imageInputParse = document.getElementById('imageInputParse');
   const resultElement = document.getElementById('result');
+  const copyButton = document.getElementById('copyButton');
   console.log('imageInputParse:', imageInputParse);
   console.log('resultElement:', resultElement);
+  console.log('copyButton:', copyButton);
 
   // Load stored result from chrome.storage.local
   if (resultElement) {
     chrome.storage.local.get(['lnurlResult'], (data) => {
       if (data.lnurlResult) {
-        // Extract the LNURL from the stored string (remove "LN Address Found: " prefix)
+        // Extract the LNURL from the stored string (backward compatibility)
         const storedLnurl = data.lnurlResult.startsWith('LN Address Found: ')
           ? data.lnurlResult.slice(18)
           : data.lnurlResult;
         const shortened = shortenLnurl(storedLnurl);
         resultElement.textContent = `LN Address Found: ${shortened}`;
+        if (copyButton) {
+          copyButton.style.display = 'inline-block'; // Show button if LNURL exists
+        }
         console.log('Loaded stored result:', data.lnurlResult);
         console.log('Displayed shortened LNURL:', shortened);
       } else {
         console.log('No stored result found');
         resultElement.textContent = 'No previous result found.';
+        if (copyButton) {
+          copyButton.style.display = 'none'; // Hide button if no LNURL
+        }
       }
     });
   } else {
     console.error('resultElement not found');
+  }
+
+  // Handle copy button click
+  if (copyButton) {
+    copyButton.addEventListener('click', () => {
+      chrome.storage.local.get(['lnurlResult'], (data) => {
+        if (data.lnurlResult) {
+          const lnurl = data.lnurlResult.startsWith('LN Address Found: ')
+            ? data.lnurlResult.slice(18)
+            : data.lnurlResult;
+          navigator.clipboard.writeText(lnurl).then(() => {
+            const originalText = copyButton.textContent;
+            copyButton.textContent = 'Copied!';
+            console.log('Copied LNURL to clipboard:', lnurl);
+            setTimeout(() => {
+              copyButton.textContent = originalText;
+            }, 2000);
+          }).catch((err) => {
+            console.error('Failed to copy LNURL:', err);
+          });
+        } else {
+          console.log('No LNURL to copy');
+        }
+      });
+    });
+  } else {
+    console.error('copyButton not found');
   }
 
   // Handle file selection and processing
@@ -86,8 +121,14 @@ document.addEventListener('DOMContentLoaded', () => {
           if (lnurl.startsWith('lnurl') || lnurl.startsWith('lnbc')) {
             const shortened = shortenLnurl(lnurl);
             resultText = `LN Address Found: ${shortened}`;
+            if (copyButton) {
+              copyButton.style.display = 'inline-block'; // Show button
+            }
           } else {
             resultText = 'No LN Address Found.';
+            if (copyButton) {
+              copyButton.style.display = 'none'; // Hide button
+            }
           }
 
           if (resultElement) {

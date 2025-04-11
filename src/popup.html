@@ -12,7 +12,7 @@
       color: #fff;
       margin: 0;
       padding: 20px;
-      width: 300px;
+      width: 350px; /* Increased from 300px */
     }
     h3 {
       text-align: center;
@@ -61,6 +61,16 @@
     p {
       font-size: 14px;
       margin-top: 10px;
+      margin-bottom: 5px;
+    }
+    .result-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    #copyButton {
+      padding: 5px 10px; /* Smaller padding for compact look */
+      font-size: 12px; /* Slightly smaller text */
     }
   </style>
 </head>
@@ -79,7 +89,10 @@
   <div class="section">
     <h4>Parse LN Address</h4>
     <input type="file" id="imageInputParse" accept="image/*">
-    <p id="result">Result will appear here.</p>
+    <div class="result-container">
+      <p id="result">Result will appear here.</p>
+      <button id="copyButton" style="display: none;">Copy</button>
+    </div>
   </div>
 
   <!-- Scan Page for LN URLs -->
