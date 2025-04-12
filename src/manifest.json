@@ -2,20 +2,13 @@
   "manifest_version": 3,
   "name": "XZap",
   "version": "1.0",
-  "permissions": ["activeTab", "storage", "scripting"],
-  "content_scripts": [
-    {
-      "matches": ["https://x.com/*"],
-      "js": ["content.js"]
-    }
-  ],
+  "permissions": ["storage"],
   "action": {
-    "default_popup": "popup.html",
-    "default_icon": "assets/icon.png"
+    "default_popup": "popup.html"
   },
   "web_accessible_resources": [
     {
-      "resources": ["etch.js"],
+      "resources": ["file-select.html", "etch.js"],
       "matches": ["<all_urls>"]
     }
   ]
