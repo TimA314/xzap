@@ -60,23 +60,41 @@
       100% { transform: rotate(360deg); }
     }
     .result {
+      display: flex;
+      align-items: center;
+      gap: 10px;
       margin-top: 10px;
       padding: 10px;
       background-color: #1e1e1e;
       border: 1px solid #ff9800;
       border-radius: 10px;
     }
+    #copyButton {
+      padding: 5px 10px;
+      font-size: 12px;
+      background-color: #ff9800;
+      color: #121212;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    #copyButton:hover {
+      background-color: #e68900;
+    }
   </style>
 </head>
 <body>
-    <h4>Extract LN Address from Image</h4>
-    <p>Select an image file to extract an LN address.</p>
-    <button id="chooseFileButton">Choose File</button>
-    <input type="file" id="fileInput" accept="image/*">
-    <p id="fileName" style="display: none;"></p>
-    <button id="processButton" disabled>Process Image</button>
-    <div id="spinner" class="spinner"></div>
-    <div id="result" class="result" style="display: none; overflow-x: auto; white-space: nowrap;"></div>
-    <script src="file-select.js"></script>
+  <h4>Extract LN Address from Image</h4>
+  <p>Select an image file to extract an LN address.</p>
+  <button id="chooseFileButton">Choose File</button>
+  <input type="file" id="fileInput" accept="image/*">
+  <p id="fileName" style="display: none;"></p>
+  <button id="processButton" disabled>Process Image</button>
+  <div id="spinner" class="spinner"></div>
+  <div id="result" class="result" style="display: none;">
+    <span id="lnurlText"></span>
+    <button id="copyButton" style="display: none;">Copy</button>
+  </div>
+  <script src="file-select.js"></script>
 </body>
 </html>
