@@ -63,8 +63,10 @@ document.addEventListener('DOMContentLoaded', () => {
           // Display result
           spinner.style.display = 'none';
           if (lnurl.startsWith('lnurl') || lnurl.startsWith('lnbc')) {
-            fullLnurl = lnurl; // Store the full LNURL
+            fullLnurl = lnurl; // Full LNURL
+            
             const shortened = lnurl.length > 20 ? `${lnurl.slice(0, 6)}...${lnurl.slice(-6)}` : lnurl;
+            
             lnurlText.textContent = `LN Address: ${shortened}`;
             copyButton.style.display = 'inline-block';
             resultDisplay.style.display = 'flex';
@@ -73,16 +75,20 @@ document.addEventListener('DOMContentLoaded', () => {
             chrome.storage.local.get(['history'], (data) => {
               const history = data.history || [];
               history.unshift({
+                type: 'lnurlProcessed',
                 fileName: file.name,
-                lnurl,
+                lnurl: lnurl,
+                dataUrl: e.target.result,
                 timestamp: new Date().toISOString()
               });
               chrome.storage.local.set({ history }, () => {
                 // Update popup
                 chrome.runtime.sendMessage({
-                  type: 'lnurlProcessed',
-                  fileName: file.name,
-                  lnurl
+                    type: 'lnurlProcessed',
+                    fileName: file.name,
+                    lnurl: lnurl,
+                    dataUrl: e.target.result,
+                    timestamp: new Date().toISOString()
                 });
               });
             });

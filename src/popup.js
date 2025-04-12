@@ -66,6 +66,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Open history.html when "View History" is clicked
+  document.getElementById('historyButton').addEventListener('click', () => {
+    chrome.windows.create({
+      url: chrome.runtime.getURL('history.html'),
+      type: 'popup',
+      width: 600,
+      height: 400
+    });
+  });
+
   // Listen for processed LNURL from file-select.html
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'lnurlProcessed') {
