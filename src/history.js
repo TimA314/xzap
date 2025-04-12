@@ -10,17 +10,13 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
   
-      history.forEach((item) => {
+      history.forEach((item, index) => {
         const div = document.createElement('div');
         div.className = 'history-item';
   
         const img = document.createElement('img');
         img.src = item.dataUrl;
         div.appendChild(img);
-  
-        // const pFileName = document.createElement('p');
-        // pFileName.textContent = `File: ${item.fileName}`;
-        // div.appendChild(pFileName);
   
         const pLnurl = document.createElement('p');
         pLnurl.textContent = `LNURL: ${item.lnurl}`;
@@ -38,6 +34,22 @@ document.addEventListener('DOMContentLoaded', () => {
           });
         });
         div.appendChild(copyButton);
+  
+        const deleteButton = document.createElement('button');
+        deleteButton.className = 'delete-button';
+        deleteButton.textContent = '✕'; // Small "X" symbol for delete
+        deleteButton.setAttribute('data-index', index);
+        deleteButton.addEventListener('click', (e) => {
+          const confirmDelete = confirm('Are you sure you want to delete this history entry?');
+          if (confirmDelete) {
+            const indexToDelete = e.target.getAttribute('data-index');
+            history.splice(indexToDelete, 1);
+            chrome.storage.local.set({ history }, () => {
+              div.remove(); // Remove the DOM element immediately
+            });
+          }
+        });
+        div.appendChild(deleteButton);
   
         historyList.appendChild(div);
       });
