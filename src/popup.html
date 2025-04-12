@@ -11,18 +11,22 @@
       background: #121212;
       color: #fff;
       margin: 0;
-      padding: 20px;
-      width: 350px;
+      padding-left: 10px;
+      padding-right: 10px;
+      padding-bottom: 0px;
+      padding-top: 0px;
+      width: 380px;
+      height: fit-content;
     }
     h3 {
       text-align: center;
-      margin-bottom: 20px;
+      margin-bottom: 15px;
       color: #ff9800;
     }
     .section {
       background-color: #1e1e1e;
       border-radius: 20px;
-      padding: 15px;
+      padding: 10px;
       margin-bottom: 15px;
       box-shadow: 0 2px 8px rgba(255, 152, 0, 0.3);
       border: 1px solid #ff9800;
@@ -47,7 +51,7 @@
       background-color: #ff9800;
       color: #121212;
       border: none;
-      padding: 10px 15px;
+      padding: 5px 10px;
       border-radius: 10px;
       cursor: pointer;
       font-size: 14px;
@@ -75,33 +79,41 @@
       padding: 5px 10px;
       font-size: 12px;
     }
+    .info-text {
+      font-size: 12px;
+      color: #bbb;
+      margin-top: 5px;
+    }
   </style>
 </head>
 <body>
-  <h3>XZap Tools</h3>
+  <h3>XZap: Easy Lightning Tools</h3>
 
-  <!-- Etch LNURL into Image -->
+  <!-- Embed Your Lightning Address into an Image -->
   <div class="section">
-    <h4>Etch LNURL</h4>
-    <input type="text" id="lnurlInput" placeholder="Enter LNURL (e.g., lnurl1test)">
-    <button id="etchSelectButton">Select Image to Etch</button>
-    <button id="etchButton" disabled>Etch LNURL</button>
+    <h4>Embed Your Address in an Image</h4>
+    <p class="info-text">Enter your Lightning Address (a code like lnurl1test) and select an image. We’ll hide it inside the image for you!</p>
+    <input type="text" id="lnurlInput" placeholder="Enter your Lightning Address">
+    <button id="etchSelectButton">Select Image</button>
+    <button id="etchButton" disabled>Embed Address</button>
   </div>
 
-  <!-- Get LN Address from Image -->
+  <!-- Get Your Lightning Address from an Image -->
   <div class="section">
-    <h4>Get LN Address</h4>
-    <button id="parseSelectButton">Get LN Address from Image</button>
+    <h4>Get Your Address from an Image</h4>
+    <p class="info-text">Have an image with a hidden Lightning Address? We’ll find it for you!</p>
+    <button id="parseSelectButton">Select Image to Find Address</button>
     <div class="result-container">
-      <p id="result">Result will appear here.</p>
+      <p id="result">Your address will appear here.</p>
       <button id="copyButton" style="display: none;">Copy</button>
     </div>
   </div>
 
-  <!-- Scan Page for LN URLs -->
+  <!-- Find Lightning Addresses on This Page -->
   <div class="section">
-    <h4>Scan Page</h4>
-    <button id="scanButton">Scan Page for LN URLs</button>
+    <h4>Find Addresses on This Page</h4>
+    <p class="info-text">We’ll scan this webpage for any Lightning Addresses and show them to you.</p>
+    <button id="scanButton">Scan Page for Addresses</button>
   </div>
 
   <script src="popup.js"></script>
