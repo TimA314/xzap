@@ -34,6 +34,16 @@ document.addEventListener('DOMContentLoaded', () => {
     console.error('resultElement not found');
   }
 
+  // Open etch.html when "Start Etch" is clicked
+  document.getElementById('startEtchButton').addEventListener('click', () => {
+    chrome.windows.create({
+      url: chrome.runtime.getURL('etch.html'),
+      type: 'popup',
+      width: 400,
+      height: 300
+    });
+  });
+
   // Open file selection window
   if (parseSelectButton) {
     parseSelectButton.addEventListener('click', () => {

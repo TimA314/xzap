@@ -1,46 +1,63 @@
 document.addEventListener('DOMContentLoaded', () => {
-  const etchSelectButton = document.getElementById('etchSelectButton');
-  const etchButton = document.getElementById('etchButton');
+  // Get DOM elements
   const lnurlInput = document.getElementById('lnurlInput');
+  const selectImageButton = document.getElementById('selectImageButton');
+  const fileInput = document.getElementById('fileInput');
+  const fileNameDisplay = document.getElementById('fileName');
+  const etchButton = document.getElementById('etchButton');
   let selectedFileDataUrl = null;
 
-  // Open file selection window for etching
-  etchSelectButton.addEventListener('click', () => {
-    chrome.windows.create({
-      url: chrome.runtime.getURL('file-select.html?section=etch'),
-      type: 'popup',
-      width: 400,
-      height: 200
-    });
+  // Function to check if both LNURL and image are ready
+  function checkReady() {
+    if (lnurlInput.value.trim() !== '' && selectedFileDataUrl) {
+      etchButton.disabled = false;
+    } else {
+      etchButton.disabled = true;
+    }
+  }
+
+  // Trigger file input when "Select Image" is clicked
+  selectImageButton.addEventListener('click', () => {
+    fileInput.click();
   });
 
-  // Listen for file selection
-  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.type === 'fileSelected' && message.section === 'etch') {
-      selectedFileDataUrl = message.dataUrl;
-      etchButton.disabled = false;
-      sendResponse({ received: true });
+  // Handle image selection
+  fileInput.addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        selectedFileDataUrl = e.target.result;
+        fileNameDisplay.textContent = `Selected: ${file.name}`;
+        fileNameDisplay.style.display = 'block';
+        checkReady();
+      };
+      reader.readAsDataURL(file);
     }
   });
 
-  // Handle etching
+  // Update button state when LNURL input changes
+  lnurlInput.addEventListener('input', checkReady);
+
+  // Perform etching and download
   etchButton.addEventListener('click', () => {
-    const lnurl = lnurlInput.value;
+    const lnurl = lnurlInput.value.trim();
     if (!lnurl || !selectedFileDataUrl) {
-      alert('Please provide an LNURL and select an image.');
+      alert('Please provide a Lightning Address and select an image.');
       return;
     }
 
     const img = new Image();
     img.src = selectedFileDataUrl;
     img.onload = () => {
+      // Create canvas to manipulate image
       const canvas = document.createElement('canvas');
       canvas.width = img.width;
       canvas.height = img.height;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0);
 
-      // Embed LNURL
+      // Embed LNURL using steganography
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const data = imageData.data;
       const lnurlWithTerminator = lnurl + '\0';
@@ -50,7 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
         .join('');
 
       if (data.length < lnurlBits.length) {
-        alert('Image too small to embed LNURL.');
+        alert('Image too small to embed the Lightning Address.');
         return;
       }
 
@@ -59,12 +76,44 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       ctx.putImageData(imageData, 0, 0);
 
-      // Download
+      // // Create a thumbnail canvas for history preview (e.g., 100x100px)
+      // const thumbCanvas = document.createElement('canvas');
+      // thumbCanvas.width = 100;
+      // thumbCanvas.height = 100;
+      // const thumbCtx = thumbCanvas.getContext('2d');
+      // thumbCtx.drawImage(canvas, 0, 0, img.width, img.height, 0, 0, 100, 100);
+
+      // // Get compressed data URL (quality 0.7 for smaller size)
+      // const etchedDataUrl = thumbCanvas.toDataURL('image/jpeg', 0.7);
+
+      // // Store in history
+      // chrome.storage.local.get(['history'], (data) => {
+      //   const history = data.history || [];
+      //   history.unshift({
+      //     type: 'lnurlEmbedded',
+      //     fileName: file.name,
+      //     lnurl: lnurl,
+      //     dataUrl: etchedDataUrl,
+      //     timestamp: new Date().toISOString()
+      //   });
+      //   chrome.storage.local.set({ history }, () => {
+      //     // Update popup
+      //     chrome.runtime.sendMessage({
+      //         type: 'lnurlProcessed',
+      //         fileName: file.name,
+      //         lnurl: lnurl,
+      //         dataUrl: etchedDataUrl,
+      //         timestamp: new Date().toISOString()
+      //     });
+      //   });
+      // });
+      
+      // Download the modified image 
       const link = document.createElement('a');
       link.download = 'etched-image.png';
       link.href = canvas.toDataURL('image/png');
       link.click();
-      console.log('Etched LNURL:', lnurl);
+      console.log('Embedded Lightning Address:', lnurl);
     };
   });
 });
