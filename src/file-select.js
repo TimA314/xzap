@@ -42,60 +42,49 @@ document.addEventListener('DOMContentLoaded', () => {
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0);
   
-          // Extract bits
-          const imageData = ctx.getImageData(0, 0, img.width, img.height);
-          let bits = '';
-          for (let i = 0; i < imageData.data.length && bits.length < 4096; i++) {
-            bits += imageData.data[i] & 1;
-          }
+          // Extract LNURL using frequency-domain steganography
+          try {
+            const imageData = ctx.getImageData(0, 0, img.width, img.height);
+            fullLnurl = decodeLNURL(imageData); // Use new function
   
-          // Convert to LNURL
-          let lnurl = '';
-          for (let i = 0; i < bits.length; i += 8) {
-            const byte = bits.slice(i, i + 8);
-            if (byte.length < 8) break;
-            const charCode = parseInt(byte, 2);
-            if (charCode === 0) break;
-            lnurl += String.fromCharCode(charCode);
-          }
-          lnurl = lnurl.trim();
+            spinner.style.display = 'none';
+            if (fullLnurl.startsWith('lnurl') || fullLnurl.startsWith('lnbc')) {
+              const shortened = fullLnurl.length > 20 ? `${fullLnurl.slice(0, 6)}...${fullLnurl.slice(-6)}` : fullLnurl;
+              lnurlText.textContent = `LN Address: ${shortened}`;
+              copyButton.style.display = 'inline-block';
+              resultDisplay.style.display = 'flex';
   
-          // Display result
-          spinner.style.display = 'none';
-          if (lnurl.startsWith('lnurl') || lnurl.startsWith('lnbc')) {
-            fullLnurl = lnurl; // Full LNURL
-            
-            const shortened = lnurl.length > 20 ? `${lnurl.slice(0, 6)}...${lnurl.slice(-6)}` : lnurl;
-            
-            lnurlText.textContent = `LN Address: ${shortened}`;
-            copyButton.style.display = 'inline-block';
-            resultDisplay.style.display = 'flex';
-  
-            // Store in history
-            chrome.storage.local.get(['history'], (data) => {
-              const history = data.history || [];
-              history.unshift({
-                type: 'lnurlProcessed',
-                fileName: file.name,
-                lnurl: lnurl,
-                dataUrl: e.target.result,
-                timestamp: new Date().toISOString()
-              });
-              chrome.storage.local.set({ history }, () => {
-                // Update popup
-                chrome.runtime.sendMessage({
+              // Store in history
+              chrome.storage.local.get(['history'], (data) => {
+                const history = data.history || [];
+                history.unshift({
+                  type: 'lnurlProcessed',
+                  fileName: file.name,
+                  lnurl: fullLnurl,
+                  dataUrl: e.target.result,
+                  timestamp: new Date().toISOString()
+                });
+                chrome.storage.local.set({ history }, () => {
+                  chrome.runtime.sendMessage({
                     type: 'lnurlProcessed',
                     fileName: file.name,
-                    lnurl: lnurl,
+                    lnurl: fullLnurl,
                     dataUrl: e.target.result,
                     timestamp: new Date().toISOString()
+                  });
                 });
               });
-            });
-          } else {
-            lnurlText.textContent = 'No LN Address Found.';
+            } else {
+              lnurlText.textContent = 'No LN Address Found.';
+              copyButton.style.display = 'none';
+              resultDisplay.style.display = 'block';
+            }
+          } catch (error) {
+            spinner.style.display = 'none';
+            lnurlText.textContent = 'Error extracting LN Address.';
             copyButton.style.display = 'none';
             resultDisplay.style.display = 'block';
+            console.error(error);
           }
         };
       };

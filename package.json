@@ -1,11 +1,11 @@
 {
     "name": "xzap",
     "version": "1.0.0",
-    "description": "Zap X posts with Lightning payments via Nostr",
+    "description": "Zap X posts with Bitcoin Lightning payments",
     "scripts": {
         "start": "echo 'Load into browser manually'"
     },
     "dependencies": {
-        "canvas": "^3.1.0",
+        "canvas": "^3.1.0"
     }
 }

@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('etch.js: DOMContentLoaded');
+
   // Get DOM elements
   const lnurlInput = document.getElementById('lnurlInput');
   const selectImageButton = document.getElementById('selectImageButton');
@@ -18,29 +20,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Trigger file input when "Select Image" is clicked
   selectImageButton.addEventListener('click', () => {
+    console.log('etch.js: Select Image button clicked');
     fileInput.click();
   });
 
   // Handle image selection
   fileInput.addEventListener('change', (event) => {
+    console.log('etch.js: File selected');
     const file = event.target.files[0];
     if (file) {
       const reader = new FileReader();
       reader.onload = (e) => {
-        selectedFileDataUrl = e.target.result;
-        fileNameDisplay.textContent = `Selected: ${file.name}`;
-        fileNameDisplay.style.display = 'block';
-        checkReady();
+        try {
+          selectedFileDataUrl = e.target.result;
+          fileNameDisplay.textContent = `Selected: ${file.name}`;
+          fileNameDisplay.style.display = 'block';
+          checkReady();
+          console.log('etch.js: File reader onload completed');
+        } catch (error) {
+          console.error('etch.js: Error in file reader onload:', error);
+          alert('Error reading file: ' + error.message);
+        }
+      };
+      reader.onerror = (error) => {
+        console.error('etch.js: File reader error:', error);
+        alert('Error reading file: ' + error.message);
       };
       reader.readAsDataURL(file);
     }
   });
 
   // Update button state when LNURL input changes
-  lnurlInput.addEventListener('input', checkReady);
+  lnurlInput.addEventListener('input', () => {
+    console.log('etch.js: LNURL input changed');
+    checkReady();
+  });
 
   // Perform etching and download
   etchButton.addEventListener('click', () => {
+    console.log('etch.js: Etch button clicked');
     const lnurl = lnurlInput.value.trim();
     if (!lnurl || !selectedFileDataUrl) {
       alert('Please provide a Lightning Address and select an image.');
@@ -50,70 +68,49 @@ document.addEventListener('DOMContentLoaded', () => {
     const img = new Image();
     img.src = selectedFileDataUrl;
     img.onload = () => {
-      // Create canvas to manipulate image
-      const canvas = document.createElement('canvas');
-      canvas.width = img.width;
-      canvas.height = img.height;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0);
+      try {
+        console.log('etch.js: Image loaded, starting encoding');
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
 
-      // Embed LNURL using steganography
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const data = imageData.data;
-      const lnurlWithTerminator = lnurl + '\0';
-      const lnurlBits = lnurlWithTerminator
-        .split('')
-        .map(char => char.charCodeAt(0).toString(2).padStart(8, '0'))
-        .join('');
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        console.log('etch.js: Calling encodeLNURL');
+        const encodedImageData = encodeLNURL(imageData, lnurl);
+        console.log('etch.js: encodeLNURL completed');
+        ctx.putImageData(encodedImageData, 0, 0);
 
-      if (data.length < lnurlBits.length) {
-        alert('Image too small to embed the Lightning Address.');
-        return;
+        const link = document.createElement('a');
+        link.download = 'etched-image.png';
+        link.href = canvas.toDataURL('image/png');
+        console.log('etch.js: Triggering download');
+        link.click();
+        console.log('Embedded Lightning Address:', lnurl);
+
+        chrome.storage.local.get(['history'], (data) => {
+          const history = data.history || [];
+          history.unshift({
+            type: 'lnurlEmbedded',
+            fileName: fileInput.files[0].name,
+            lnurl: lnurl,
+            dataUrl: selectedFileDataUrl,
+            timestamp: new Date().toISOString()
+          });
+          chrome.storage.local.set({ history }, () => {
+            console.log('etch.js: History updated');
+            // window.close();
+          });
+        });
+      } catch (error) {
+        console.error('etch.js: Error during encoding:', error);
+        alert('Error embedding Lightning Address: ' + error.message);
       }
-
-      for (let i = 0; i < lnurlBits.length; i++) {
-        data[i] = (data[i] & 0xFE) | parseInt(lnurlBits[i]);
-      }
-      ctx.putImageData(imageData, 0, 0);
-
-      // // Create a thumbnail canvas for history preview (e.g., 100x100px)
-      // const thumbCanvas = document.createElement('canvas');
-      // thumbCanvas.width = 100;
-      // thumbCanvas.height = 100;
-      // const thumbCtx = thumbCanvas.getContext('2d');
-      // thumbCtx.drawImage(canvas, 0, 0, img.width, img.height, 0, 0, 100, 100);
-
-      // // Get compressed data URL (quality 0.7 for smaller size)
-      // const etchedDataUrl = thumbCanvas.toDataURL('image/jpeg', 0.7);
-
-      // // Store in history
-      // chrome.storage.local.get(['history'], (data) => {
-      //   const history = data.history || [];
-      //   history.unshift({
-      //     type: 'lnurlEmbedded',
-      //     fileName: file.name,
-      //     lnurl: lnurl,
-      //     dataUrl: etchedDataUrl,
-      //     timestamp: new Date().toISOString()
-      //   });
-      //   chrome.storage.local.set({ history }, () => {
-      //     // Update popup
-      //     chrome.runtime.sendMessage({
-      //         type: 'lnurlProcessed',
-      //         fileName: file.name,
-      //         lnurl: lnurl,
-      //         dataUrl: etchedDataUrl,
-      //         timestamp: new Date().toISOString()
-      //     });
-      //   });
-      // });
-      
-      // Download the modified image 
-      const link = document.createElement('a');
-      link.download = 'etched-image.png';
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-      console.log('Embedded Lightning Address:', lnurl);
+    };
+    img.onerror = (error) => {
+      console.error('etch.js: Image load error:', error);
+      alert('Error loading image: ' + error.message);
     };
   });
 });

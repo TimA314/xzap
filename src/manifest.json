@@ -2,11 +2,18 @@
   "manifest_version": 3,
   "name": "XZap",
   "version": "1.0",
-  "permissions": ["storage"],
+  "permissions": ["activeTab", "scripting", "storage"],
+  "description": "A Chrome extension for X.com",
   "action": {
     "default_popup": "popup.html",
     "default_icon": "assets/icon.png"
   },
+  "content_scripts": [
+    {
+      "matches": ["*://*.x.com/*"],
+      "js": ["stego-fft.js", "content.js"]
+    }
+  ],
   "web_accessible_resources": [
     {
       "resources": ["file-select.html", "etch.js"],
