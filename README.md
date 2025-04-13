@@ -1,5 +1,5 @@
 # XZap
-A browser extension to add Lightning Network payments to X.com
+A browser extension to add Lightning Network payments to X.com using frequency-domain steganography to inject lightning addresses into avatar images. This extension then scans x.com for avatars that have addresses encoded and enables a zap button on the post.
 
 - Open source (MIT)
 - Zap away!
