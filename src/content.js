@@ -21,7 +21,7 @@ async function scanImageForLNURL(imageUrl) {
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0);
         const imageData = ctx.getImageData(0, 0, img.width, img.height);
-        const lnurl = decodeLNURL(imageData); // Use new function
+        const lnurl = decodeLNURL(imageData);
         URL.revokeObjectURL(img.src);
         scannedAvatars.set(imageUrl, lnurl);
         console.log(`Scanned ${imageUrl}: ${lnurl ? 'LNURL found' : 'No LNURL'}`);
@@ -82,24 +82,55 @@ function addZapButton(post, lnurl) {
 async function handleZap(lnurl) {
   console.log(`Handling zap for LNURL: ${lnurl}`);
   if (window.webln) {
+    // WebLN is available
     try {
-      await window.webln.enable();
-      const invoice = await fetchInvoice(lnurl);
+      await window.webln.enable(); // Prompt user to enable WebLN
+      const invoice = await fetchInvoice(lnurl); // Your function to get the invoice
       await window.webln.sendPayment(invoice);
       console.log('Zap successful');
+      alert('Zap sent successfully!');
     } catch (error) {
-      console.error('Error with webln:', error);
-      alert('Failed to send zap. Please check your wallet.');
+      console.error('Error with WebLN:', error);
+      alert('Failed to send zap. Please ensure your wallet is unlocked and try again.');
     }
   } else {
-    alert('Please install a Lightning wallet extension like Alby.');
+    // WebLN not available, show QR code
+    try {
+      const invoice = await fetchInvoice(lnurl); // Fetch invoice for 1000 sats (or adjust as needed)
+      showQRCode(invoice);
+    } catch (error) {
+      console.error('Error fetching invoice:', error);
+      alert('Failed to fetch invoice. Please try again later.');
+    }
   }
 }
 
 async function fetchInvoice(lnurl) {
   console.log(`Fetching invoice for LNURL: ${lnurl}`);
-  // Replace with actual LNURL resolution
-  return 'lnbc...';
+  try {
+    // Step 1: Fetch LNURL data
+    const response = await fetch(lnurl);
+    const data = await response.json();
+
+    // Step 2: Verify it's a payRequest LNURL
+    if (data.tag !== 'payRequest') {
+      throw new Error('Unsupported LNURL type');
+    }
+
+    // Step 3: Request an invoice from the callback URL (example: 1000 sats)
+    const amount = 1000; // Amount in satoshis (customize as needed)
+    const invoiceResponse = await fetch(`${data.callback}?amount=${amount}`);
+    const invoiceData = await invoiceResponse.json();
+
+    // Step 4: Return the payment request (invoice)
+    if (!invoiceData.pr) {
+      throw new Error('No invoice returned');
+    }
+    return invoiceData.pr;
+  } catch (error) {
+    console.error('Error fetching invoice:', error);
+    throw error; // Let handleZap catch and display the error
+  }
 }
 
 function startScanning() {
@@ -123,6 +154,45 @@ function startScanning() {
       addZapButton(post, lnurl);
     }
   })();
+}
+
+function showQRCode(invoice) {
+  // Create a centered container
+  const qrContainer = document.createElement('div');
+  qrContainer.style.position = 'fixed';
+  qrContainer.style.top = '50%';
+  qrContainer.style.left = '50%';
+  qrContainer.style.transform = 'translate(-50%, -50%)';
+  qrContainer.style.background = 'white';
+  qrContainer.style.padding = '20px';
+  qrContainer.style.boxShadow = '0 0 10px rgba(0,0,0,0.5)';
+  qrContainer.style.zIndex = '10000';
+  qrContainer.style.textAlign = 'center';
+
+  // Add instructions
+  const instruction = document.createElement('p');
+  instruction.textContent = 'Scan this QR code with your Lightning wallet to send a zap. If you have a wallet extension installed, ensure it’s enabled and refresh the page.';
+  qrContainer.appendChild(instruction);
+
+  // Generate QR code
+  const qrCode = document.createElement('div');
+  new QRCode(qrCode, {
+    text: invoice,
+    width: 256,
+    height: 256,
+  });
+  qrContainer.appendChild(qrCode);
+
+  // Add close button
+  const closeButton = document.createElement('button');
+  closeButton.textContent = 'Close';
+  closeButton.addEventListener('click', () => {
+    document.body.removeChild(qrContainer);
+  });
+  qrContainer.appendChild(closeButton);
+
+  // Append to page
+  document.body.appendChild(qrContainer);
 }
 
 startScanning();
