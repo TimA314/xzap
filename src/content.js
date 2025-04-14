@@ -82,25 +82,32 @@ function addZapButton(post, lnurl) {
 async function handleZap(lnurl) {
   console.log(`Handling zap for LNURL: ${lnurl}`);
   if (window.webln) {
-    // WebLN is available
     try {
-      await window.webln.enable(); // Prompt user to enable WebLN
-      const invoice = await fetchInvoice(lnurl); // Your function to get the invoice
-      await window.webln.sendPayment(invoice);
-      console.log('Zap successful');
-      alert('Zap sent successfully!');
+      await window.webln.enable();
+      if (lnurl.startsWith('lnbc')) {
+        // Direct Bolt11 invoice
+        await window.webln.sendPayment(lnurl);
+        console.log('Zap successful');
+        alert('Zap sent successfully!');
+      } else {
+        // LNURL-pay
+        const invoice = await fetchInvoice(lnurl);
+        await window.webln.sendPayment(invoice);
+        console.log('Zap successful');
+        alert('Zap sent successfully!');
+      }
     } catch (error) {
       console.error('Error with WebLN:', error);
       alert('Failed to send zap. Please ensure your wallet is unlocked and try again.');
     }
   } else {
-    // WebLN not available, show QR code
+    // QR code fallback
     try {
-      const invoice = await fetchInvoice(lnurl); // Fetch invoice for 1000 sats (or adjust as needed)
+      const invoice = lnurl.startsWith('lnbc') ? lnurl : await fetchInvoice(lnurl);
       showQRCode(invoice);
     } catch (error) {
-      console.error('Error fetching invoice:', error);
-      alert('Failed to fetch invoice. Please try again later.');
+      console.error('Error generating QR code:', error);
+      alert('Failed to generate QR code. Please try again.');
     }
   }
 }

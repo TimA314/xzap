@@ -8,10 +8,14 @@
     "default_popup": "popup.html",
     "default_icon": "assets/icon.png"
   },
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": false
+  },
   "content_scripts": [
     {
       "matches": ["*://*.x.com/*"],
-      "js": ["stego-fft.js", "content.js"]
+      "js": ["stego.js", "content.js"]
     }
   ],
   "web_accessible_resources": [

@@ -70,39 +70,42 @@ document.addEventListener('DOMContentLoaded', () => {
     img.onload = () => {
       try {
         console.log('etch.js: Image loaded, starting encoding');
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0);
 
+        // Step 1: Crop the image to a square
+        const size = Math.min(img.width, img.height); // Use the smaller dimension
+        const cropX = (img.width - size) / 2; // Center the crop horizontally
+        const cropY = (img.height - size) / 2; // Center the crop vertically
+
+        // Create a canvas for cropping
+        const cropCanvas = document.createElement('canvas');
+        cropCanvas.width = size;
+        cropCanvas.height = size;
+        const cropCtx = cropCanvas.getContext('2d');
+        cropCtx.drawImage(img, cropX, cropY, size, size, 0, 0, size, size);
+
+        // Step 2: Resize the cropped image to 400x400
+        const canvas = document.createElement('canvas');
+        canvas.width = 400; // X.com profile picture size
+        canvas.height = 400;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(cropCanvas, 0, 0, 400, 400);
+
+        // Step 3: Encode the LNURL
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        console.log('etch.js: Calling encodeLNURL');
-        const encodedImageData = encodeLNURL(imageData, lnurl);
-        console.log('etch.js: encodeLNURL completed');
+        console.log(`etch.js: Embedding LNURL: ${lnurl}`);
+        const encodedImageData = encodeLNURL(imageData, lnurl); // From stego-dct.js
+        console.log('etch.js: Encoding completed');
+
         ctx.putImageData(encodedImageData, 0, 0);
 
+        // Step 4: Download the result
         const link = document.createElement('a');
-        link.download = 'etched-image.png';
-        link.href = canvas.toDataURL('image/png');
+        link.download = 'etched-image.png'; // PNG for testing
+        link.href = canvas.toDataURL('image/png'); // Lossless format
         console.log('etch.js: Triggering download');
         link.click();
         console.log('Embedded Lightning Address:', lnurl);
 
-        chrome.storage.local.get(['history'], (data) => {
-          const history = data.history || [];
-          history.unshift({
-            type: 'lnurlEmbedded',
-            fileName: fileInput.files[0].name,
-            lnurl: lnurl,
-            dataUrl: selectedFileDataUrl,
-            timestamp: new Date().toISOString()
-          });
-          chrome.storage.local.set({ history }, () => {
-            console.log('etch.js: History updated');
-            // window.close();
-          });
-        });
       } catch (error) {
         console.error('etch.js: Error during encoding:', error);
         alert('Error embedding Lightning Address: ' + error.message);
