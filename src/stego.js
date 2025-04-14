@@ -52,167 +52,134 @@ function idct2(block) {
     return result;
 }
 
+// Helper function: Extract 8x8 block from imageData at (x,y) for a specific channel
+function extractBlock(imageData, x, y, channel) {
+    const block = Array.from({ length: 8 }, () => new Float64Array(8));
+    const width = imageData.width;
+    for (let i = 0; i < 8; i++) {
+        for (let j = 0; j < 8; j++) {
+            const pixelIndex = ((y + i) * width + (x + j)) * 4 + channel;
+            block[i][j] = imageData.data[pixelIndex];
+        }
+    }
+    return block;
+}
+
+// Helper function: Write 8x8 block back to imageData at (x,y) for a specific channel
+function writeBlock(imageData, x, y, block, channel) {
+    const width = imageData.width;
+    for (let i = 0; i < 8; i++) {
+        for (let j = 0; j < 8; j++) {
+            const pixelIndex = ((y + i) * width + (x + j)) * 4 + channel;
+            imageData.data[pixelIndex] = Math.max(0, Math.min(255, block[i][j]));
+        }
+    }
+}
+
+// Helper functions to apply DCT and IDCT
+function applyDCT(block) {
+    return dct2(block);
+}
+
+function applyIDCT(block) {
+    return idct2(block);
+}
+
 // Encodes an LNURL into an image using DCT-based steganography
-// @param imgData: ImageData object from a canvas
-// @param lnurl: String to embed
-function encodeLNURL(imgData, lnurl) {
-    console.log('Starting LNURL encoding...');
-    if (!imgData || !lnurl) {
-        console.error('Missing required inputs.');
-        throw new Error('Image data and LNURL are required');
-    }
+// @param imageData: ImageData object from a canvas
+// Encodes an LNURL into an image using DCT-based steganography
+function encodeLNURL(imageData, lnurl) {
+    const width = imageData.width;
+    const height = imageData.height;
+    const step = 40; // Increased step size for robustness
+    const positions = [[1, 2], [2, 1], [2, 2]]; // Coefficients to modify
 
-    const { width, height, data } = imgData;
-    console.log(`Image dimensions: ${width}x${height}`);
-    if (width % 8 !== 0 || height % 8 !== 0) {
-        console.error('Invalid image dimensions.');
-        throw new Error('Image dimensions must be multiples of 8');
-    }
-
-    // Add null terminator to LNURL and convert to binary
+    // Convert LNURL to bits with null terminator
     const lnurlWithTerminator = lnurl + '\0';
     const lnurlBits = lnurlWithTerminator
         .split('')
         .map(char => char.charCodeAt(0).toString(2).padStart(8, '0'))
         .join('');
-    console.log(`LNURL length: ${lnurl.length}, Bits to encode: ${lnurlBits.length}`);
 
-    // Calculate maximum capacity (3 bits per 8x8 block)
-    const maxBits = (width / 8) * (height / 8) * 3;
-    console.log(`Image capacity: ${maxBits} bits`);
-    if (lnurlBits.length > maxBits) {
-        console.error('LNURL too large for image.');
-        throw new Error('Image too small to encode LNURL');
-    }
-
-    // Copy image data to modify
-    const newData = new Uint8ClampedArray(data);
     let bitIndex = 0;
-    const step = 20; // Increased step size for robustness against compression
 
-    // Process each 8x8 block
     for (let y = 0; y < height; y += 8) {
         for (let x = 0; x < width; x += 8) {
-            console.log(`Processing block at (${x}, ${y})`);
-
-            // Extract 8x8 block from red channel
-            const block = Array.from({ length: 8 }, () => new Float64Array(8));
-            for (let i = 0; i < 8; i++) {
-                for (let j = 0; j < 8; j++) {
-                    const pixelIndex = ((y + i) * width + (x + j)) * 4;
-                    block[i][j] = newData[pixelIndex]; // Red channel
-                }
-            }
-
-            // Apply DCT
+            const block = extractBlock(imageData, x, y, 0);
             const dctBlock = dct2(block);
 
-            // Embed 3 bits into mid-frequency coefficients
-            const positions = [[1, 2], [2, 1], [2, 2]]; // Mid-frequency positions
-            for (let pos of positions) {
-                if (bitIndex < lnurlBits.length) {
-                    const bit = parseInt(lnurlBits[bitIndex], 10);
+            if (bitIndex < lnurlBits.length) {
+                const bit = parseInt(lnurlBits[bitIndex], 10);
+                for (let pos of positions) {
                     const coeff = dctBlock[pos[0]][pos[1]];
-                    // Embed bit: '0' -> nearest multiple of step, '1' -> nearest (multiple of step + step/2)
+                    // Embed 0 as multiples of step, 1 as step/2 offset
                     const newCoeff = bit
                         ? step * Math.round((coeff - step / 2) / step) + step / 2
                         : step * Math.round(coeff / step);
+                    console.log(`Embedding bit ${bit} at (${x}, ${y}), [${pos[0]},${pos[1]}]: ${coeff} -> ${newCoeff}`);
                     dctBlock[pos[0]][pos[1]] = newCoeff;
-                    console.log(`Embedded bit ${bit} at [${pos[0]},${pos[1]}]: ${coeff} -> ${newCoeff}`);
-                    bitIndex++;
                 }
+                bitIndex++;
             }
 
-            // Apply IDCT and clamp to [0, 255]
             const idctBlock = idct2(dctBlock);
-            for (let i = 0; i < 8; i++) {
-                for (let j = 0; j < 8; j++) {
-                    const pixelIndex = ((y + i) * width + (x + j)) * 4;
-                    newData[pixelIndex] = Math.max(0, Math.min(255, idctBlock[i][j]));
-                }
-            }
+            writeBlock(imageData, x, y, idctBlock, 0);
         }
     }
 
-    console.log(`Encoding complete. Embedded ${bitIndex} bits.`);
-    return new ImageData(newData, width, height);
+    console.log(`Encoding complete. Embedded ${bitIndex} bits for LNURL: ${lnurl}`);
+    return imageData;
 }
 
 // Decodes an LNURL from an image using DCT-based steganography
-// @param imageData: ImageData object from a canvas
 function decodeLNURL(imageData) {
-    console.log('Starting LNURL decoding...');
-    if (!imageData) {
-        console.error('Missing image data.');
-        throw new Error('Image data is required');
-    }
-
-    const { width, height, data } = imageData;
-    console.log(`Image dimensions: ${width}x${height}`);
-    if (width % 8 !== 0 || height % 8 !== 0) {
-        console.error('Invalid image dimensions.');
-        throw new Error('Image dimensions must be multiples of 8');
-    }
-
+    const width = imageData.width;
+    const height = imageData.height;
+    const step = 40; // Match encoding step size
+    const positions = [[1, 2], [2, 1], [2, 2]];
     let bits = '';
-    const step = 20; // Match encoding step size for robustness
 
-    for (let y = 0; y < height; y += 8) {
+    outer: for (let y = 0; y < height; y += 8) {
         for (let x = 0; x < width; x += 8) {
             console.log(`Processing block at (${x}, ${y})`);
-
-            // Extract 8x8 block from red channel
-            const block = Array.from({ length: 8 }, () => new Float64Array(8));
-            for (let i = 0; i < 8; i++) {
-                for (let j = 0; j < 8; j++) {
-                    const pixelIndex = ((y + i) * width + (x + j)) * 4;
-                    block[i][j] = data[pixelIndex]; // Red channel
-                }
-            }
-
-            // Apply DCT
+            const block = extractBlock(imageData, x, y, 0);
             const dctBlock = dct2(block);
 
-            // Extract bits from mid-frequency coefficients
-            const positions = [[1, 2], [2, 1], [2, 2]];
+            let bitVotes = [0, 0]; // [count0, count1]
             for (let pos of positions) {
                 const coeff = dctBlock[pos[0]][pos[1]];
-                // Determine bit by comparing distances to target values
-                const nearest0 = step * Math.round(coeff / step); // Target for bit 0
-                const nearest1 = step * Math.round((coeff - step / 2) / step) + step / 2; // Target for bit 1
+                const nearest0 = step * Math.round(coeff / step);
+                const nearest1 = step * Math.round((coeff - step / 2) / step) + step / 2;
                 const dist0 = Math.abs(coeff - nearest0);
                 const dist1 = Math.abs(coeff - nearest1);
                 const bit = dist1 < dist0 ? 1 : 0;
-                bits += bit.toString();
                 console.log(`Extracted bit ${bit} from [${pos[0]},${pos[1]}]: ${coeff}, dist0: ${dist0}, dist1: ${dist1}`);
+                bitVotes[bit]++;
             }
 
-            // Check for null terminator every 8 bits
+            const bit = bitVotes[1] > bitVotes[0] ? 1 : 0;
+            bits += bit.toString();
+
             if (bits.length >= 8 && bits.length % 8 === 0) {
                 const byte = bits.slice(-8);
-                const charCode = parseInt(byte, 2);
-                if (charCode === 0) {
+                if (parseInt(byte, 2) === 0) {
                     console.log('Null terminator found, stopping extraction.');
-                    break;
+                    break outer;
                 }
             }
         }
-        if (bits.length >= 8 && bits.length % 8 === 0 && parseInt(bits.slice(-8), 2) === 0) break;
     }
 
-    // Convert bits to string
     let lnurl = '';
-    for (let i = 0; i < bits.length; i += 8) {
+    for (let i = 0; i < bits.length - 8; i += 8) {
         const byte = bits.slice(i, i + 8);
-        if (byte.length < 8) break;
         const charCode = parseInt(byte, 2);
-        if (charCode === 0) break;
-        lnurl += String.fromCharCode(charCode);
+        if (charCode !== 0) lnurl += String.fromCharCode(charCode);
     }
 
     console.log(`Decoded bits (first 80): ${bits.slice(0, 80)}`);
-    console.log(`Decoded LNURL: ${lnurl.trim()}`);
-    return lnurl.trim();
+    console.log(`Decoded LNURL: ${lnurl}`);
+    return lnurl;
 }
 
 // Make functions globally accessible
