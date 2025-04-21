@@ -65,6 +65,35 @@
   <input type="text" id="lnurlInput" placeholder="Enter your Lightning Address">
   <button id="selectImageButton">Select Image</button>
   <input type="file" id="fileInput" accept="image/*" style="display: none;">
+  <datalist id="lnurlHistory"></datalist>
+  <script>
+    const lnurlInput = document.getElementById('lnurlInput');
+    const lnurlHistory = document.getElementById('lnurlHistory');
+
+    // Load history from localStorage
+    const history = JSON.parse(localStorage.getItem('lnurlHistory')) || [];
+    history.forEach(item => {
+      const option = document.createElement('option');
+      option.value = item;
+      lnurlHistory.appendChild(option);
+    });
+
+    // Attach datalist to input
+    lnurlInput.setAttribute('list', 'lnurlHistory');
+
+    // Save to history on input blur
+    lnurlInput.addEventListener('blur', () => {
+      const value = lnurlInput.value.trim();
+      if (value && !history.includes(value)) {
+        history.push(value);
+        localStorage.setItem('lnurlHistory', JSON.stringify(history));
+
+        const option = document.createElement('option');
+        option.value = value;
+        lnurlHistory.appendChild(option);
+      }
+    });
+  </script>
   <p id="fileName" style="display: none;"></p>
   <button id="etchButton" disabled>Embed and Download</button>
   <script src="qrcode.min.js"></script>

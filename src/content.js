@@ -1,4 +1,3 @@
-// content.js
 const scannedAvatars = new Map();
 
 async function scanImageForLNURL(imageUrl) {
@@ -8,8 +7,20 @@ async function scanImageForLNURL(imageUrl) {
     return scannedAvatars.get(imageUrl);
   }
 
+  // Modify the URL to fetch the 400x400 version
+  let modifiedUrl = imageUrl.replace('_normal', '_400x400');
+  if (modifiedUrl === imageUrl) {
+    // Fallback if '_normal' isn’t in the URL
+    modifiedUrl = imageUrl.replace(/(\.\w+)$/, '_400x400$1');
+  }
+  console.log(`Fetching modified URL: ${modifiedUrl}`);
+
   try {
-    const response = await fetch(imageUrl, { mode: 'cors' });
+    const response = await fetch(modifiedUrl, { mode: 'cors' });
+    if (!response.ok) {
+      console.error(`Failed to fetch image: ${modifiedUrl}`);
+      return null;
+    }
     const blob = await response.blob();
     const img = new Image();
     img.src = URL.createObjectURL(blob);
@@ -21,23 +32,47 @@ async function scanImageForLNURL(imageUrl) {
         canvas.height = img.height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0);
-        let lnurl = null;
 
-        try {
-          const imageData = ctx.getImageData(0, 0, img.width, img.height);
-          lnurl = decodeQRCode(imageData); // From qr-decode.js
-          console.log(`QR code scan result: ${lnurl ? 'LNURL found' : 'No LNURL'}`);
-        } catch (error) {
-          console.error('Error scanning QR code:', error);
+        // Extract the 100x100 pixel region at x: 150, y: height - 100 - 10
+        const qrSize = 100;
+        const xStart = 150; // 150px from left edge
+        const yStart = img.height - qrSize - 10; // 10px from bottom edge
+
+        // Check if the region is within bounds
+        if (xStart < 0 || yStart < 0 || xStart + qrSize > img.width || yStart + qrSize > img.height) {
+          console.error('QR code region out of bounds');
+          URL.revokeObjectURL(img.src);
+          resolve(null);
+          return;
+        }
+
+        // Crop the region
+        const croppedCanvas = document.createElement('canvas');
+        croppedCanvas.width = qrSize;
+        croppedCanvas.height = qrSize;
+        const croppedCtx = croppedCanvas.getContext('2d');
+        croppedCtx.drawImage(img, xStart, yStart, qrSize, qrSize, 0, 0, qrSize, qrSize);
+        let croppedImageData = croppedCtx.getImageData(0, 0, qrSize, qrSize);
+
+        // Preprocess to enhance contrast for semi-transparent QR code
+        croppedImageData = toGrayscale(croppedImageData);
+        const threshold = 128; // Adjust as needed
+        croppedImageData = applyThreshold(croppedImageData, threshold);
+
+        // Decode with jsQR
+        const code = jsQR(croppedImageData.data, qrSize, qrSize);
+        let lnurl = null;
+        if (code && (code.data.startsWith('lnurl') || code.data.includes('@') || code.data.startsWith('lnbc'))) {
+          lnurl = code.data;
         }
 
         URL.revokeObjectURL(img.src);
         scannedAvatars.set(imageUrl, lnurl);
         console.log(`Scanned ${imageUrl}: ${lnurl ? 'LNURL found' : 'No LNURL'}`);
-        resolve(lnurl || null);
+        resolve(lnurl);
       };
       img.onerror = () => {
-        console.error(`Failed to load image: ${imageUrl}`);
+        console.error(`Failed to load image: ${modifiedUrl}`);
         URL.revokeObjectURL(img.src);
         resolve(null);
       };
@@ -99,12 +134,10 @@ async function handleZap(lnurl) {
     try {
       await window.webln.enable();
       if (lnurl.startsWith('lnbc')) {
-        // Direct Bolt11 invoice
         await window.webln.sendPayment(lnurl);
         console.log('Zap successful');
         alert('Zap sent successfully!');
       } else {
-        // LNURL-pay
         const invoice = await fetchInvoice(lnurl);
         await window.webln.sendPayment(invoice);
         console.log('Zap successful');
@@ -115,7 +148,6 @@ async function handleZap(lnurl) {
       alert('Failed to send zap. Please ensure your wallet is unlocked and try again.');
     }
   } else {
-    // QR code fallback
     try {
       const invoice = lnurl.startsWith('lnbc') ? lnurl : await fetchInvoice(lnurl);
       showQRCode(invoice);
@@ -129,33 +161,25 @@ async function handleZap(lnurl) {
 async function fetchInvoice(lnurl) {
   console.log(`Fetching invoice for LNURL: ${lnurl}`);
   try {
-    // Step 1: Fetch LNURL data
     const response = await fetch(lnurl);
     const data = await response.json();
-
-    // Step 2: Verify it's a payRequest LNURL
     if (data.tag !== 'payRequest') {
       throw new Error('Unsupported LNURL type');
     }
-
-    // Step 3: Request an invoice from the callback URL (example: 1000 sats)
     const amount = 1000; // Amount in satoshis (customize as needed)
     const invoiceResponse = await fetch(`${data.callback}?amount=${amount}`);
     const invoiceData = await invoiceResponse.json();
-
-    // Step 4: Return the payment request (invoice)
     if (!invoiceData.pr) {
       throw new Error('No invoice returned');
     }
     return invoiceData.pr;
   } catch (error) {
     console.error('Error fetching invoice:', error);
-    throw error; // Let handleZap catch and display the error
+    throw error;
   }
 }
 
 function showQRCode(invoice) {
-  // Create a centered container
   const qrContainer = document.createElement('div');
   qrContainer.style.position = 'fixed';
   qrContainer.style.top = '50%';
@@ -167,17 +191,14 @@ function showQRCode(invoice) {
   qrContainer.style.zIndex = '10000';
   qrContainer.style.textAlign = 'center';
 
-  // Add instructions
   const instruction = document.createElement('p');
   instruction.textContent = 'Scan this QR code with your Lightning wallet to send a zap. If you have a wallet extension installed, ensure it’s enabled and refresh the page.';
   qrContainer.appendChild(instruction);
 
-  // Placeholder for QR code (requires QRCode library or custom implementation)
   const qrCode = document.createElement('div');
   qrCode.textContent = 'QR code generation not implemented in this context.';
   qrContainer.appendChild(qrCode);
 
-  // Add close button
   const closeButton = document.createElement('button');
   closeButton.textContent = 'Close';
   closeButton.addEventListener('click', () => {
@@ -185,7 +206,6 @@ function showQRCode(invoice) {
   });
   qrContainer.appendChild(closeButton);
 
-  // Append to page
   document.body.appendChild(qrContainer);
 }
 
@@ -210,6 +230,33 @@ function startScanning() {
       addZapButton(post, lnurl);
     }
   })();
+}
+
+// Helper functions for preprocessing
+function toGrayscale(imageData) {
+  const data = imageData.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+    data[i] = gray;
+    data[i + 1] = gray;
+    data[i + 2] = gray;
+  }
+  return imageData;
+}
+
+function applyThreshold(imageData, threshold) {
+  const data = imageData.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const gray = data[i];
+    const value = gray > threshold ? 255 : 0;
+    data[i] = value;
+    data[i + 1] = value;
+    data[i + 2] = value;
+  }
+  return imageData;
 }
 
 startScanning();

@@ -15,12 +15,12 @@
   "content_scripts": [
     {
       "matches": ["*://*.x.com/*"],
-      "js": ["stego.js", "content.js"]
+      "js": ["content.js", "libs/jsQR.js"]
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["file-select.html", "etch.js", "decode.js", "libs/jsQR.js"],      
+      "resources": ["etch.js", "decode.js", "libs/jsQR.js"],      
       "matches": ["<all_urls>"]
     }
   ]

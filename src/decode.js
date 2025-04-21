@@ -43,18 +43,28 @@ document.addEventListener('DOMContentLoaded', () => {
         ctx.drawImage(img, 0, 0);
 
         try {
-          // Extract the bottom-left 50x50 pixel region (QR code size with 5px margin)
+          // Extract the 100x100 pixel region at x: 150, y: height - 100 - 10
           const qrSize = 100;
-          const xStart = 5;
-          const yStart = img.height - qrSize - 5;
-          
+          const xStart = 150; // 150px from left edge
+          const yStart = img.height - qrSize - 10; // 10px from bottom edge
+
+          // Check if the region is within bounds
+          if (xStart < 0 || yStart < 0 || xStart + qrSize > img.width || yStart + qrSize > img.height) {
+            throw new Error('QR code region out of bounds');
+          }
+
           // Create a cropped canvas for the QR code region
           const croppedCanvas = document.createElement('canvas');
           croppedCanvas.width = qrSize;
           croppedCanvas.height = qrSize;
           const croppedCtx = croppedCanvas.getContext('2d');
           croppedCtx.drawImage(img, xStart, yStart, qrSize, qrSize, 0, 0, qrSize, qrSize);
-          const croppedImageData = croppedCtx.getImageData(0, 0, qrSize, qrSize);
+          let croppedImageData = croppedCtx.getImageData(0, 0, qrSize, qrSize);
+
+          // Preprocess to enhance contrast for semi-transparent QR code
+          croppedImageData = toGrayscale(croppedImageData);
+          const threshold = 128; // Adjust as needed
+          croppedImageData = applyThreshold(croppedImageData, threshold);
 
           // Use jsQR to decode the QR code
           const code = jsQR(croppedImageData.data, qrSize, qrSize);
@@ -121,3 +131,30 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+
+// Helper functions for preprocessing
+function toGrayscale(imageData) {
+  const data = imageData.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+    data[i] = gray;
+    data[i + 1] = gray;
+    data[i + 2] = gray;
+  }
+  return imageData;
+}
+
+function applyThreshold(imageData, threshold) {
+  const data = imageData.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const gray = data[i];
+    const value = gray > threshold ? 255 : 0;
+    data[i] = value;
+    data[i + 1] = value;
+    data[i + 2] = value;
+  }
+  return imageData;
+}

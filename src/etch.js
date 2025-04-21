@@ -92,15 +92,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Step 3: Generate QR code using QRCode.js
         const qrContainer = document.createElement('div');
-        const qrText = `lightning:${lnurl}`;
+        const qrText = `${lnurl}`;
         const qrCode = new QRCode(qrContainer, {
-          text: lnurl,
+          text: qrText,
           width: 100,
           height: 100,
-          colorDark: "#000000", // Black QR code
-          colorLight: "#ffffff", // White background
-          correctLevel: QRCode.CorrectLevel.H // High error correction
+          colorDark: "rgba(0, 0, 0, 0.5)", // Black QR code with 50% opacity
+          colorLight: "rgba(255, 255, 255, 0.5)", // White background with 50% opacity
+          correctLevel: QRCode.CorrectLevel.H, // High error correction
         });
+
+        // Add a lightning symbol in the middle of the QR code
+        qrCode._oDrawing._el.appendChild((() => {
+          const lightningIcon = document.createElement('div');
+          lightningIcon.style.position = 'absolute';
+          lightningIcon.style.top = '50%';
+          lightningIcon.style.left = '50%';
+          lightningIcon.style.transform = 'translate(-50%, -50%)';
+          lightningIcon.style.width = '30px';
+          lightningIcon.style.height = '30px';
+            lightningIcon.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="orange" width="30" height="30">
+              <path d="M13 2L3 14h7v8l10-12h-7z"/>
+            </svg>
+            `;
+          lightningIcon.style.backgroundSize = 'contain';
+          lightningIcon.style.backgroundRepeat = 'no-repeat';
+          return lightningIcon;
+        })());
         qrCode.makeCode(lnurl);
 
         // Step 4: Wait for rendering and overlay the QR code
@@ -112,8 +131,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
           }
 
-          const qrX = 5; // 5-pixel margin from the left
-          const qrY = canvas.height - qrCanvas.height - 5; // 5-pixel margin from the bottom
+          const qrX = 150; // 5-pixel margin from the left
+          const qrY = canvas.height - qrCanvas.height - 10; // 5-pixel margin from the bottom
           ctx.drawImage(qrCanvas, qrX, qrY);
 
           // Step 5: Download the result
