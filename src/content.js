@@ -1,9 +1,10 @@
 const scannedAvatars = new Map();
 
-// Function to get posts and their avatar images
+// Function to get posts and their avatar images, excluding already processed posts
 function getPostsAndAvatars() {
   console.log('Getting posts and avatars');
-  const posts = document.querySelectorAll('article[role="article"]');
+  const posts = Array.from(document.querySelectorAll('article[role="article"]'))
+    .filter(post => !post.hasAttribute('data-zap-processed')); // Exclude processed posts
   const postAvatarMap = new Map();
   posts.forEach((post) => {
     const avatarImg = post.querySelector('img.css-9pa8cd');
@@ -27,13 +28,8 @@ function removeThumbnailSuffix(url) {
 // Function to scan an image for LNURL (QR code detection) using background script
 async function scanImageForLNURL(imageUrl) {
   console.log(`Scanning image: ${imageUrl}`);
-  if (scannedAvatars.has(imageUrl)) {
-    console.log(`Using Cache for ${imageUrl}`);
-    return scannedAvatars.get(imageUrl);
-  }
 
   const modifiedUrl = removeThumbnailSuffix(imageUrl);
-  console.log(`Original URL: ${imageUrl}`);
   console.log(`Modified URL: ${modifiedUrl}`);
 
   try {
@@ -48,13 +44,8 @@ async function scanImageForLNURL(imageUrl) {
       });
     });
 
-    if (!response) {
-      console.error('No response from background script');
-      return null;
-    }
-
-    if (response.error) {
-      console.error(`Failed to fetch image: ${response.error}`);
+    if (!response || response.error) {
+      console.error('Failed to fetch image:', response ? response.error : 'No response');
       return null;
     }
 
@@ -65,16 +56,29 @@ async function scanImageForLNURL(imageUrl) {
     return new Promise((resolve) => {
       img.onload = () => {
         console.log(`Image loaded: width=${img.width}, height=${img.height}`);
-        // Add your QR code detection or LNURL scanning logic here
-        resolve(null); // Replace with actual result if scanning succeeds
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+        const code = jsQR(imageData.data, imageData.width, imageData.height);
+        if (code) {
+          console.log('QR code found:', code.data);
+          resolve(code.data); // LNURL should be in code.data
+        } else {
+          console.log('No QR code detected in image');
+          resolve(null);
+        }
       };
       img.onerror = () => {
-        console.error(`Failed to load image from data URL`);
+        console.error('Failed to load image for scanning');
         resolve(null);
       };
     });
   } catch (error) {
-    console.error(`Error scanning image ${imageUrl}:`, error);
+    console.error('Error scanning image:', error);
     return null;
   }
 }
@@ -102,19 +106,24 @@ function createZapButton(lnurl) {
   return zapButton;
 }
 
-// Function to add the zap button to a post
 function addZapButton(post, lnurl) {
-  if (post.querySelector('.zap-button')) return;
-  const actionBar = post.querySelector('div[role="group"]');
-  if (!actionBar) return;
+  const button = document.createElement('button');
+  button.textContent = '⚡ Zap';
+  button.disabled = !lnurl; // Enable only if LNURL exists
+  console.log(`Zap button created - LNURL: ${lnurl || 'none'}, Disabled: ${button.disabled}`);
 
-  const zapButton = createZapButton(lnurl);
-  zapButton.className = 'zap-button css-175oi2r r-1777fci r-bt1l66 r-bztko3 r-lrvibr r-1loqt21 r-1ny4l3l';
-  zapButton.setAttribute('aria-label', 'Zap');
-  zapButton.disabled = !lnurl;
-  zapButton.style.opacity = lnurl ? '1' : '0.5';
-  actionBar.appendChild(zapButton);
-  console.log(`Added zap button to post: ${lnurl ? 'enabled' : 'disabled'}`);
+  button.addEventListener('click', () => {
+    console.log('Zap button clicked!');
+    if (lnurl) {
+      console.log(`Handling payment with LNURL: ${lnurl}`);
+      handleZapPayment(lnurl);
+    } else {
+      console.log('No LNURL available - button should be disabled');
+    }
+  });
+
+  post.appendChild(button);
+  console.log('Zap button added to DOM');
 }
 
 // Function to handle the zap action
@@ -208,6 +217,7 @@ function startScanning() {
     console.log('DOM mutation detected');
     const postAvatarMap = getPostsAndAvatars();
     for (const [post, avatarUrl] of postAvatarMap) {
+      post.setAttribute('data-zap-processed', 'true'); // Mark post as processed
       const lnurl = await scanImageForLNURL(avatarUrl);
       addZapButton(post, lnurl);
     }
@@ -219,6 +229,7 @@ function startScanning() {
     console.log('Initial scan');
     const postAvatarMap = getPostsAndAvatars();
     for (const [post, avatarUrl] of postAvatarMap) {
+      post.setAttribute('data-zap-processed', 'true'); // Mark post as processed
       const lnurl = await scanImageForLNURL(avatarUrl);
       addZapButton(post, lnurl);
     }
