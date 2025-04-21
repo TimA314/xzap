@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
     img.src = selectedFileDataUrl;
     img.onload = () => {
       try {
-        console.log('etch.js: Image loaded, starting encoding');
+        console.log('etch.js: Image loaded, starting processing');
 
         // Step 1: Crop the image to a square
         const size = Math.min(img.width, img.height); // Use the smaller dimension
@@ -90,24 +90,42 @@ document.addEventListener('DOMContentLoaded', () => {
         const ctx = canvas.getContext('2d');
         ctx.drawImage(cropCanvas, 0, 0, 400, 400);
 
-        // Step 3: Encode the LNURL
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        console.log(`etch.js: Embedding LNURL: ${lnurl}`);
-        const encodedImageData = encodeLNURL(imageData, lnurl); // From stego-dct.js
-        console.log('etch.js: Encoding completed');
+        // Step 3: Generate QR code using QRCode.js
+        const qrContainer = document.createElement('div');
+        const qrText = `lightning:${lnurl}`;
+        const qrCode = new QRCode(qrContainer, {
+          text: lnurl,
+          width: 100,
+          height: 100,
+          colorDark: "#000000", // Black QR code
+          colorLight: "#ffffff", // White background
+          correctLevel: QRCode.CorrectLevel.H // High error correction
+        });
+        qrCode.makeCode(lnurl);
 
-        ctx.putImageData(encodedImageData, 0, 0);
+        // Step 4: Wait for rendering and overlay the QR code
+        setTimeout(() => {
+          const qrCanvas = qrContainer.querySelector('canvas');
+          if (!qrCanvas) {
+            console.error('QR code canvas not found');
+            alert('Error generating QR code: Canvas not found');
+            return;
+          }
 
-        // Step 4: Download the result
-        const link = document.createElement('a');
-        link.download = 'etched-image.png'; // PNG for testing
-        link.href = canvas.toDataURL('image/png'); // Lossless format
-        console.log('etch.js: Triggering download');
-        link.click();
-        console.log('Embedded Lightning Address:', lnurl);
+          const qrX = 5; // 5-pixel margin from the left
+          const qrY = canvas.height - qrCanvas.height - 5; // 5-pixel margin from the bottom
+          ctx.drawImage(qrCanvas, qrX, qrY);
 
+          // Step 5: Download the result
+          const link = document.createElement('a');
+          link.download = 'etched-image.png';
+          link.href = canvas.toDataURL('image/png');
+          console.log('etch.js: Triggering download');
+          link.click();
+          console.log('Embedded Lightning Address:', lnurl);
+        }, 100); // Delay to ensure QR code rendering
       } catch (error) {
-        console.error('etch.js: Error during encoding:', error);
+        console.error('etch.js: Error during processing:', error);
         alert('Error embedding Lightning Address: ' + error.message);
       }
     };

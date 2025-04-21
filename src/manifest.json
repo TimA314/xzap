@@ -20,7 +20,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["file-select.html", "etch.js"],
+      "resources": ["file-select.html", "etch.js", "decode.js", "libs/jsQR.js"],      
       "matches": ["<all_urls>"]
     }
   ]

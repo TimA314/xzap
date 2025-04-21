@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (parseSelectButton) {
     parseSelectButton.addEventListener('click', () => {
       chrome.windows.create({
-        url: chrome.runtime.getURL('file-select.html?section=parse'),
+        url: chrome.runtime.getURL('decode.html?section=parse'),
         type: 'popup',
         width: 400,
         height: 300

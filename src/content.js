@@ -1,3 +1,4 @@
+// content.js
 const scannedAvatars = new Map();
 
 async function scanImageForLNURL(imageUrl) {
@@ -20,12 +21,25 @@ async function scanImageForLNURL(imageUrl) {
         canvas.height = img.height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0);
-        const imageData = ctx.getImageData(0, 0, img.width, img.height);
-        const lnurl = decodeLNURL(imageData);
+        let lnurl = null;
+
+        try {
+          const imageData = ctx.getImageData(0, 0, img.width, img.height);
+          lnurl = decodeQRCode(imageData); // From qr-decode.js
+          console.log(`QR code scan result: ${lnurl ? 'LNURL found' : 'No LNURL'}`);
+        } catch (error) {
+          console.error('Error scanning QR code:', error);
+        }
+
         URL.revokeObjectURL(img.src);
         scannedAvatars.set(imageUrl, lnurl);
         console.log(`Scanned ${imageUrl}: ${lnurl ? 'LNURL found' : 'No LNURL'}`);
         resolve(lnurl || null);
+      };
+      img.onerror = () => {
+        console.error(`Failed to load image: ${imageUrl}`);
+        URL.revokeObjectURL(img.src);
+        resolve(null);
       };
     });
   } catch (error) {
@@ -140,6 +154,41 @@ async function fetchInvoice(lnurl) {
   }
 }
 
+function showQRCode(invoice) {
+  // Create a centered container
+  const qrContainer = document.createElement('div');
+  qrContainer.style.position = 'fixed';
+  qrContainer.style.top = '50%';
+  qrContainer.style.left = '50%';
+  qrContainer.style.transform = 'translate(-50%, -50%)';
+  qrContainer.style.background = 'white';
+  qrContainer.style.padding = '20px';
+  qrContainer.style.boxShadow = '0 0 10px rgba(0,0,0,0.5)';
+  qrContainer.style.zIndex = '10000';
+  qrContainer.style.textAlign = 'center';
+
+  // Add instructions
+  const instruction = document.createElement('p');
+  instruction.textContent = 'Scan this QR code with your Lightning wallet to send a zap. If you have a wallet extension installed, ensure it’s enabled and refresh the page.';
+  qrContainer.appendChild(instruction);
+
+  // Placeholder for QR code (requires QRCode library or custom implementation)
+  const qrCode = document.createElement('div');
+  qrCode.textContent = 'QR code generation not implemented in this context.';
+  qrContainer.appendChild(qrCode);
+
+  // Add close button
+  const closeButton = document.createElement('button');
+  closeButton.textContent = 'Close';
+  closeButton.addEventListener('click', () => {
+    document.body.removeChild(qrContainer);
+  });
+  qrContainer.appendChild(closeButton);
+
+  // Append to page
+  document.body.appendChild(qrContainer);
+}
+
 function startScanning() {
   console.log('Starting scanning');
   const observer = new MutationObserver(async (mutations) => {
@@ -161,45 +210,6 @@ function startScanning() {
       addZapButton(post, lnurl);
     }
   })();
-}
-
-function showQRCode(invoice) {
-  // Create a centered container
-  const qrContainer = document.createElement('div');
-  qrContainer.style.position = 'fixed';
-  qrContainer.style.top = '50%';
-  qrContainer.style.left = '50%';
-  qrContainer.style.transform = 'translate(-50%, -50%)';
-  qrContainer.style.background = 'white';
-  qrContainer.style.padding = '20px';
-  qrContainer.style.boxShadow = '0 0 10px rgba(0,0,0,0.5)';
-  qrContainer.style.zIndex = '10000';
-  qrContainer.style.textAlign = 'center';
-
-  // Add instructions
-  const instruction = document.createElement('p');
-  instruction.textContent = 'Scan this QR code with your Lightning wallet to send a zap. If you have a wallet extension installed, ensure it’s enabled and refresh the page.';
-  qrContainer.appendChild(instruction);
-
-  // Generate QR code
-  const qrCode = document.createElement('div');
-  new QRCode(qrCode, {
-    text: invoice,
-    width: 256,
-    height: 256,
-  });
-  qrContainer.appendChild(qrCode);
-
-  // Add close button
-  const closeButton = document.createElement('button');
-  closeButton.textContent = 'Close';
-  closeButton.addEventListener('click', () => {
-    document.body.removeChild(qrContainer);
-  });
-  qrContainer.appendChild(closeButton);
-
-  // Append to page
-  document.body.appendChild(qrContainer);
 }
 
 startScanning();

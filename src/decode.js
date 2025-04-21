@@ -36,30 +36,33 @@ document.addEventListener('DOMContentLoaded', () => {
       const img = new Image();
       img.src = e.target.result;
       img.onload = () => {
-        // Validate image dimensions (must be multiples of 8)
-        if (img.width % 8 !== 0 || img.height % 8 !== 0) {
-          console.error('file-select.js: Image dimensions must be multiples of 8.');
-          spinner.style.display = 'none';
-          lnurlText.textContent = 'Error: Image dimensions must be multiples of 8.';
-          resultDisplay.style.display = 'block';
-          return;
-        }
-
         const canvas = document.createElement('canvas');
         canvas.width = img.width;
         canvas.height = img.height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0);
 
-        // Extract LNURL using frequency-domain steganography
         try {
-          const imageData = ctx.getImageData(0, 0, img.width, img.height);
-          console.log('file-select.js: Starting decoding...');
-          fullLnurl = decodeLNURL(imageData); // From stego-dct.js
-          console.log('file-select.js: Decoding completed');
+          // Extract the bottom-left 50x50 pixel region (QR code size with 5px margin)
+          const qrSize = 100;
+          const xStart = 5;
+          const yStart = img.height - qrSize - 5;
+          
+          // Create a cropped canvas for the QR code region
+          const croppedCanvas = document.createElement('canvas');
+          croppedCanvas.width = qrSize;
+          croppedCanvas.height = qrSize;
+          const croppedCtx = croppedCanvas.getContext('2d');
+          croppedCtx.drawImage(img, xStart, yStart, qrSize, qrSize, 0, 0, qrSize, qrSize);
+          const croppedImageData = croppedCtx.getImageData(0, 0, qrSize, qrSize);
+
+          // Use jsQR to decode the QR code
+          const code = jsQR(croppedImageData.data, qrSize, qrSize);
+          console.log('decode.js: Decoding completed');
 
           spinner.style.display = 'none';
-          if (fullLnurl.startsWith('lnurl') || fullLnurl.startsWith('lnbc')) {
+          if (code && (code.data.startsWith('lnurl') || code.data.includes('@') || code.data.startsWith('lnbc'))) {
+            fullLnurl = code.data;
             const shortened = fullLnurl.length > 20 ? `${fullLnurl.slice(0, 6)}...${fullLnurl.slice(-6)}` : fullLnurl;
             lnurlText.textContent = `LN Address: ${shortened}`;
             copyButton.style.display = 'inline-block';
@@ -91,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
             resultDisplay.style.display = 'block';
           }
         } catch (error) {
-          console.error('file-select.js: Error during decoding:', error);
+          console.error('decode.js: Error during QR scanning:', error);
           spinner.style.display = 'none';
           lnurlText.textContent = 'Error extracting LN Address.';
           copyButton.style.display = 'none';
