@@ -2,15 +2,14 @@
   "manifest_version": 3,
   "name": "XZap",
   "version": "1.0",
-  "permissions": ["activeTab", "scripting", "storage"],
+  "permissions": ["activeTab", "scripting", "storage", "https://pbs.twimg.com/*"],
   "description": "A Chrome extension for X.com",
   "action": {
     "default_popup": "popup.html",
     "default_icon": "assets/icon.png"
   },
   "background": {
-    "scripts": ["background.js"],
-    "persistent": false
+      "service_worker": "background.js"
   },
   "content_scripts": [
     {

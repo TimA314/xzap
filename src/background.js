@@ -1,14 +1,17 @@
-console.log('XZap background script loaded');
-
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.type === 'lnurlProcessed') {
-      console.log('background.js: Received lnurlProcessed message:', {
-        fileName: message.fileName,
-        lnurl: message.lnurl,
-        timestamp: message.timestamp
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.type === 'fetchImage') {
+    fetch(request.url)
+      .then(response => response.blob())
+      .then(blob => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          sendResponse({ dataUrl: reader.result });
+        };
+        reader.readAsDataURL(blob);
+      })
+      .catch(error => {
+        sendResponse({ error: error.message });
       });
-      // Optionally process the LNURL here (e.g., log to storage, notify user)
-      sendResponse({ status: 'received' });
-
-    }
-  });
+    return true; // Indicates an asynchronous response
+  }
+});

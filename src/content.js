@@ -1,88 +1,6 @@
 const scannedAvatars = new Map();
 
-async function scanImageForLNURL(imageUrl) {
-  console.log(`Scanning image: ${imageUrl}`);
-  if (scannedAvatars.has(imageUrl)) {
-    console.log(`Cache hit for ${imageUrl}`);
-    return scannedAvatars.get(imageUrl);
-  }
-
-  // Modify the URL to fetch the 400x400 version
-  let modifiedUrl = imageUrl.replace('_normal', '_400x400');
-  if (modifiedUrl === imageUrl) {
-    // Fallback if '_normal' isn’t in the URL
-    modifiedUrl = imageUrl.replace(/(\.\w+)$/, '_400x400$1');
-  }
-  console.log(`Fetching modified URL: ${modifiedUrl}`);
-
-  try {
-    const response = await fetch(modifiedUrl, { mode: 'cors' });
-    if (!response.ok) {
-      console.error(`Failed to fetch image: ${modifiedUrl}`);
-      return null;
-    }
-    const blob = await response.blob();
-    const img = new Image();
-    img.src = URL.createObjectURL(blob);
-
-    return new Promise((resolve) => {
-      img.onload = () => {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0);
-
-        // Extract the 100x100 pixel region at x: 150, y: height - 100 - 10
-        const qrSize = 100;
-        const xStart = 150; // 150px from left edge
-        const yStart = img.height - qrSize - 10; // 10px from bottom edge
-
-        // Check if the region is within bounds
-        if (xStart < 0 || yStart < 0 || xStart + qrSize > img.width || yStart + qrSize > img.height) {
-          console.error('QR code region out of bounds');
-          URL.revokeObjectURL(img.src);
-          resolve(null);
-          return;
-        }
-
-        // Crop the region
-        const croppedCanvas = document.createElement('canvas');
-        croppedCanvas.width = qrSize;
-        croppedCanvas.height = qrSize;
-        const croppedCtx = croppedCanvas.getContext('2d');
-        croppedCtx.drawImage(img, xStart, yStart, qrSize, qrSize, 0, 0, qrSize, qrSize);
-        let croppedImageData = croppedCtx.getImageData(0, 0, qrSize, qrSize);
-
-        // Preprocess to enhance contrast for semi-transparent QR code
-        croppedImageData = toGrayscale(croppedImageData);
-        const threshold = 128; // Adjust as needed
-        croppedImageData = applyThreshold(croppedImageData, threshold);
-
-        // Decode with jsQR
-        const code = jsQR(croppedImageData.data, qrSize, qrSize);
-        let lnurl = null;
-        if (code && (code.data.startsWith('lnurl') || code.data.includes('@') || code.data.startsWith('lnbc'))) {
-          lnurl = code.data;
-        }
-
-        URL.revokeObjectURL(img.src);
-        scannedAvatars.set(imageUrl, lnurl);
-        console.log(`Scanned ${imageUrl}: ${lnurl ? 'LNURL found' : 'No LNURL'}`);
-        resolve(lnurl);
-      };
-      img.onerror = () => {
-        console.error(`Failed to load image: ${modifiedUrl}`);
-        URL.revokeObjectURL(img.src);
-        resolve(null);
-      };
-    });
-  } catch (error) {
-    console.error(`Error scanning image ${imageUrl}:`, error);
-    return null;
-  }
-}
-
+// Function to get posts and their avatar images
 function getPostsAndAvatars() {
   console.log('Getting posts and avatars');
   const posts = document.querySelectorAll('article[role="article"]');
@@ -97,37 +15,109 @@ function getPostsAndAvatars() {
   return postAvatarMap;
 }
 
-function addZapButton(post, lnurl) {
-  if (post.querySelector('.zap-button')) return;
-  const actionBar = post.querySelector('div[role="group"]');
-  if (!actionBar) return;
+// Function to remove thumbnail suffix from the filename only
+function removeThumbnailSuffix(url) {
+  const urlParts = url.split('/');
+  const filename = urlParts.pop(); // Get the filename, e.g., "zBgjidNg_x96.png"
+  const modifiedFilename = filename.replace(/_[^.]+(\.[^.]+)$/, '$1'); // Remove "_x96", keep ".png"
+  urlParts.push(modifiedFilename);
+  return urlParts.join('/'); // Reconstruct the URL
+}
 
+// Function to scan an image for LNURL (QR code detection) using background script
+async function scanImageForLNURL(imageUrl) {
+  console.log(`Scanning image: ${imageUrl}`);
+  if (scannedAvatars.has(imageUrl)) {
+    console.log(`Using Cache for ${imageUrl}`);
+    return scannedAvatars.get(imageUrl);
+  }
+
+  const modifiedUrl = removeThumbnailSuffix(imageUrl);
+  console.log(`Original URL: ${imageUrl}`);
+  console.log(`Modified URL: ${modifiedUrl}`);
+
+  try {
+    const response = await new Promise((resolve) => {
+      chrome.runtime.sendMessage({ type: 'fetchImage', url: modifiedUrl }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.error('Runtime error:', chrome.runtime.lastError.message);
+          resolve(null);
+        } else {
+          resolve(response);
+        }
+      });
+    });
+
+    if (!response) {
+      console.error('No response from background script');
+      return null;
+    }
+
+    if (response.error) {
+      console.error(`Failed to fetch image: ${response.error}`);
+      return null;
+    }
+
+    const dataUrl = response.dataUrl;
+    const img = new Image();
+    img.src = dataUrl;
+
+    return new Promise((resolve) => {
+      img.onload = () => {
+        console.log(`Image loaded: width=${img.width}, height=${img.height}`);
+        // Add your QR code detection or LNURL scanning logic here
+        resolve(null); // Replace with actual result if scanning succeeds
+      };
+      img.onerror = () => {
+        console.error(`Failed to load image from data URL`);
+        resolve(null);
+      };
+    });
+  } catch (error) {
+    console.error(`Error scanning image ${imageUrl}:`, error);
+    return null;
+  }
+}
+
+// Function to create the zap button
+function createZapButton(lnurl) {
   const zapButton = document.createElement('button');
-  zapButton.className = 'zap-button css-175oi2r r-1777fci r-bt1l66 r-bztko3 r-lrvibr r-1loqt21 r-1ny4l3l';
-  zapButton.setAttribute('aria-label', 'Zap');
   zapButton.innerHTML = `
-    <div dir="ltr" class="css-146c3p1 r-bcqeeo r-1ttztb7 r-qvutc0 r-37j5jr r-a023e6 r-rjixqe r-16dba41 r-1awozwy r-6koalj r-1h0z5md r-o7ynqc r-clp7b1 r-3s2u2q" style="color: rgb(113, 118, 123);">
-      <div class="css-175oi2r r-xoduu5">
-        <svg viewBox="0 0 24 24" aria-hidden="true" class="r-4qtqp9 r-yyyyoo r-dnmrzs r-bnwqim r-lrvibr r-m6rgpd r-1xvli5t r-1hdv0qi">
-          <path d="M12 21.5l-9-9L9 2h6l-6 10.5L21 2v18z"></path>
-        </svg>
-      </div>
+    <div class="css-146c3p1 r-1ttztb7 r-qvutc0 r-37j5jr r-a023e6 r-rjixqe r-16dba41 r-1awozwy r-6koalj r-1h0z5md r-o7ynqc r-clp7b1 r-3s2u2q" style="color: rgb(113, 118, 123);">
+      <svg viewBox="0 0 24 24" width="20" height="20" class="r-4qtqp9 r-yyyyoo r-dnmrzs r-bnwqim r-lrvibr r-m6rgpd r-1xvli5t r-1hdv0qi">
+        <path fill="currentColor" d="M14.5 2l-3 7h4.5l-3 7h-4.5l3-7h-4.5l3-7z"></path>
+      </svg>
     </div>
   `;
-  zapButton.disabled = !lnurl;
-  zapButton.style.opacity = lnurl ? '1' : '0.5';
-  zapButton.addEventListener('click', () => {
+  zapButton.style.cursor = 'pointer';
+  zapButton.title = 'Zap';
+  zapButton.onclick = () => {
     if (lnurl) {
       console.log(`Zap button clicked for LNURL: ${lnurl}`);
       handleZap(lnurl);
     } else {
       console.log('Zap button clicked but no LNURL available');
     }
-  });
+  };
+  return zapButton;
+}
+
+// Function to add the zap button to a post
+function addZapButton(post, lnurl) {
+  if (post.querySelector('.zap-button')) return;
+  const actionBar = post.querySelector('div[role="group"]');
+  if (!actionBar) return;
+
+  const zapButton = createZapButton(lnurl);
+  zapButton.className = 'zap-button css-175oi2r r-1777fci r-bt1l66 r-bztko3 r-lrvibr r-1loqt21 r-1ny4l3l';
+  zapButton.setAttribute('aria-label', 'Zap');
+  zapButton.disabled = !lnurl;
+  zapButton.style.opacity = lnurl ? '1' : '0.5';
   actionBar.appendChild(zapButton);
   console.log(`Added zap button to post: ${lnurl ? 'enabled' : 'disabled'}`);
 }
 
+// Function to handle the zap action
 async function handleZap(lnurl) {
   console.log(`Handling zap for LNURL: ${lnurl}`);
   if (window.webln) {
@@ -158,6 +148,7 @@ async function handleZap(lnurl) {
   }
 }
 
+// Function to fetch an invoice for LNURL-pay
 async function fetchInvoice(lnurl) {
   console.log(`Fetching invoice for LNURL: ${lnurl}`);
   try {
@@ -179,6 +170,7 @@ async function fetchInvoice(lnurl) {
   }
 }
 
+// Function to show a QR code for manual zapping
 function showQRCode(invoice) {
   const qrContainer = document.createElement('div');
   qrContainer.style.position = 'fixed';
@@ -192,7 +184,7 @@ function showQRCode(invoice) {
   qrContainer.style.textAlign = 'center';
 
   const instruction = document.createElement('p');
-  instruction.textContent = 'Scan this QR code with your Lightning wallet to send a zap. If you have a wallet extension installed, ensure it’s enabled and refresh the page.';
+  instruction.textContent = 'Scan this QR code with your Lightning wallet to send a zap.';
   qrContainer.appendChild(instruction);
 
   const qrCode = document.createElement('div');
@@ -209,6 +201,7 @@ function showQRCode(invoice) {
   document.body.appendChild(qrContainer);
 }
 
+// Function to start scanning for posts and avatars
 function startScanning() {
   console.log('Starting scanning');
   const observer = new MutationObserver(async (mutations) => {
@@ -232,7 +225,7 @@ function startScanning() {
   })();
 }
 
-// Helper functions for preprocessing
+// Helper functions for image preprocessing
 function toGrayscale(imageData) {
   const data = imageData.data;
   for (let i = 0; i < data.length; i += 4) {
@@ -259,4 +252,5 @@ function applyThreshold(imageData, threshold) {
   return imageData;
 }
 
+// Start the scanning process
 startScanning();
