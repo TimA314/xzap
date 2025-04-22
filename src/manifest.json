@@ -14,7 +14,7 @@
   "content_scripts": [
     {
       "matches": ["*://*.x.com/*"],
-      "js": ["content.js", "libs/jsQR.js", "qrcode.min.js"]
+      "js": ["modal.js", "content.js", "libs/jsQR.js", "qrcode.min.js"]
     }
   ],
   "web_accessible_resources": [

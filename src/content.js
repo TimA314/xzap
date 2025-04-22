@@ -9,18 +9,18 @@ function getTweetElements() {
 }
 
 function getProfileImageUrl(post) {
-  let imgElement = post.querySelector('div[data-testid="Tweet-User-Avatar"] img');
-  if (!imgElement) {
-      imgElement = post.querySelector('img[src*="profile_images"]');
-  }
-  if (imgElement && imgElement.src) {
-      const largeImageUrl = imgElement.src.replace('_x96', '_400x400').replace('_normal', '_400x400');
-      console.log(`Profile image URL found: ${largeImageUrl}`);
-      return largeImageUrl;
-  } else {
-      console.error('No profile image found in tweet');
-      return null;
-  }
+    let imgElement = post.querySelector('div[data-testid="Tweet-User-Avatar"] img');
+    if (!imgElement) {
+        imgElement = post.querySelector('img[src*="profile_images"]');
+    }
+    if (imgElement && imgElement.src) {
+        const largeImageUrl = imgElement.src.replace('_x96', '_400x400').replace('_normal', '_400x400');
+        console.log(`Profile image URL found: ${largeImageUrl}`);
+        return largeImageUrl;
+    } else {
+        console.error('No profile image found in tweet');
+        return null;
+    }
 }
 
 async function scanImageForLNURL(imageUrl) {
@@ -158,6 +158,15 @@ function applyThreshold(imageData, threshold) {
     return imageData;
 }
 
+function calculateAverageBrightness(imageData) {
+    const data = imageData.data;
+    let sum = 0;
+    for (let i = 0; i < data.length; i += 4) {
+        sum += data[i]; // Grayscale, so r = g = b
+    }
+    return sum / (data.length / 4);
+}
+
 function addZapButton(post, lnurl) {
     console.log(`Adding zap button with LNURL: ${lnurl || 'none'}`);
     const button = document.createElement('button');
@@ -179,8 +188,22 @@ function addZapButton(post, lnurl) {
                     console.log('Payment successful:', result);
                     alert('Zap payment successful!');
                 } else {
-                    console.error('WebLN not available');
-                    alert('WebLN is not available. Install a compatible wallet.');
+                    console.log('WebLN not available, displaying modal');
+                    const imageUrl = getProfileImageUrl(post);
+                    if (imageUrl) {
+                        const response = await new Promise((resolve) => {
+                            chrome.runtime.sendMessage({ type: 'fetchImage', url: imageUrl }, resolve);
+                        });
+                        if (response && response.dataUrl) {
+                            createModal(lnurl, response.dataUrl);
+                        } else {
+                            console.error('Failed to fetch image for modal');
+                            alert('Failed to load image. Please try again.');
+                        }
+                    } else {
+                        console.error('No profile image found for modal');
+                        alert('No profile image found. Please try again.');
+                    }
                 }
             } catch (error) {
                 console.error('Payment failed:', error.message);
@@ -219,15 +242,6 @@ async function processTweets() {
         addZapButton(tweet, lnurl);
     }
     console.log('Tweet processing complete');
-}
-
-function calculateAverageBrightness(imageData) {
-  const data = imageData.data;
-  let sum = 0;
-  for (let i = 0; i < data.length; i += 4) {
-      sum += data[i]; // Grayscale, so r = g = b
-  }
-  return sum / (data.length / 4);
 }
 
 let debounceTimer;
