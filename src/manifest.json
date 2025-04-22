@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "XZap",
   "version": "1.0",
-  "permissions": ["activeTab", "scripting", "storage", "https://pbs.twimg.com/*"],
+  "permissions": ["activeTab", "scripting", "storage"],
   "description": "A Chrome extension for X.com",
   "action": {
     "default_popup": "popup.html",
@@ -14,7 +14,7 @@
   "content_scripts": [
     {
       "matches": ["*://*.x.com/*"],
-      "js": ["content.js", "libs/jsQR.js"]
+      "js": ["content.js", "libs/jsQR.js", "qrcode.min.js"]
     }
   ],
   "web_accessible_resources": [
@@ -22,5 +22,9 @@
       "resources": ["etch.js", "decode.js", "libs/jsQR.js"],      
       "matches": ["<all_urls>"]
     }
+  ],
+  "host_permissions": [
+    "https://x.com/*",
+    "https://pbs.twimg.com/*"
   ]
 }
