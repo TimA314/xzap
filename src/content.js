@@ -1,4 +1,5 @@
 const processedPosts = new Set();
+let isWebLNAvailable = false;
 
 // Listener for fetch requests from weblnDetector.js
 window.addEventListener('message', async function(event) {
@@ -11,6 +12,21 @@ window.addEventListener('message', async function(event) {
         } catch (error) {
             window.postMessage({ type: 'FETCH_URL_RESPONSE', requestId, success: false, error: error.message }, '*');
         }
+    } else if (event.data.type === 'WEBLN_STATUS') {
+        isWebLNAvailable = event.data.available;
+        console.log('WebLN status updated:', isWebLNAvailable);
+    } else if (event.data.type === 'WEBLN_ACTION_RESPONSE') {
+        if (event.data.success) {
+            isWebLNAvailable = true; // Assume availability on successful action
+            console.log('WebLN action successful:', event.data.result);
+        } else {
+            console.error('WebLN action failed:', event.data.error);
+            isWebLNAvailable = false;
+            alert('Payment failed: ' + event.data.error);
+        }
+    } else if (event.data.type === 'WEBLN_UNAVAILABLE') {
+        console.error('WebLN not available');
+        isWebLNAvailable = false;
     }
 });
 
@@ -200,83 +216,69 @@ function injectScript() {
     console.log('weblnDetector.js injected');
 }
 
-// Listen for responses from weblnDetector.js
-window.addEventListener('message', function(event) {
-    if (event.data.type === 'WEBLN_ACTION_RESPONSE') {
-        if (event.data.success) {
-            console.log('WebLN action successful:', event.data.result);
-        } else {
-            console.error('WebLN action failed:', event.data.error);
-            alert('Payment failed: ' + event.data.error);
-        }
-    } else if (event.data.type === 'WEBLN_UNAVAILABLE') {
-        console.error('WebLN not available');
-    }
-});
-
 async function processTweets() {
-  console.log('Processing tweets');
-  const tweets = getTweetElements();
-  console.log(`Processing ${tweets.length} tweets`);
-  for (const tweet of tweets) {
-      if (processedPosts.has(tweet)) {
-          continue;
-      }
-      const imageUrl = getProfileImageUrl(tweet);
-      console.log('Starting LNURL scan for tweet');
-      const result = await scanImageForLNURL(imageUrl);
-      console.log('LNURL scan completed, result:', result);
-      const lnurl = result ? result.lnurl : null;
-      const croppedDataUrl = result ? result.croppedDataUrl : null;
-      if (addZapButton(tweet, lnurl, croppedDataUrl)) {
-          tweet.setAttribute('data-zap-processed', 'true');
-          processedPosts.add(tweet);
-      }
-  }
-  console.log('Tweet processing complete');
+    console.log('Processing tweets');
+    const tweets = getTweetElements();
+    console.log(`Processing ${tweets.length} tweets`);
+    for (const tweet of tweets) {
+        if (processedPosts.has(tweet)) {
+            continue;
+        }
+        const imageUrl = getProfileImageUrl(tweet);
+        console.log('Starting LNURL scan for tweet');
+        const result = await scanImageForLNURL(imageUrl);
+        console.log('LNURL scan completed, result:', result);
+        const lnurl = result ? result.lnurl : null;
+        const croppedDataUrl = result ? result.croppedDataUrl : null;
+        if (addZapButton(tweet, lnurl, croppedDataUrl)) {
+            tweet.setAttribute('data-zap-processed', 'true');
+            processedPosts.add(tweet);
+        }
+    }
+    console.log('Tweet processing complete');
 }
 
 function addZapButton(post, lnurl, croppedDataUrl) {
-  console.log(`Adding zap button with LNURL: ${lnurl || 'none'}`);
-  const button = document.createElement('button');
-  button.textContent = '⚡ Zap';
-  button.className = 'css-175oi2r r-1777fci r-bt1l66 r-bztko3 r-lrvibr r-1loqt21 r-1ny4l3l';
-  button.style.color = 'rgb(113, 118, 123)';
-  button.disabled = !lnurl;
-  button.title = lnurl ? 'Zap this post' : 'No LNURL found';
+    console.log(`Adding zap button with LNURL: ${lnurl || 'none'}`);
+    const button = document.createElement('button');
+    button.textContent = '⚡ Zap';
+    button.className = 'css-175oi2r r-1777fci r-bt1l66 r-bztko3 r-lrvibr r-1loqt21 r-1ny4l3l';
+    button.style.color = 'rgb(113, 118, 123)';
+    button.disabled = !lnurl;
+    button.title = lnurl ? 'Zap this post' : 'No LNURL found';
 
-  if (!lnurl) {
-      button.style.opacity = '0.5';
-      button.style.cursor = 'not-allowed';
-  } else {
-      button.addEventListener('click', async () => {
-          console.log('Zap button clicked');
-          const defaultAmount = await getDefaultAmount();
-          if (window.webln && defaultAmount) {
-              console.log('WebLN available, proceeding with payment');
-              window.postMessage({ type: 'ZAP_PAYMENT_REQUEST', lnurl: lnurl, amount: defaultAmount }, '*');
-          } else {
-              console.log('Showing modal');
-              createModal(lnurl, croppedDataUrl, (amount) => {
-                  window.postMessage({ type: 'ZAP_PAYMENT_REQUEST', lnurl: lnurl, amount: amount }, '*');
-              });
-          }
-      });
-  }
+    if (!lnurl) {
+        button.style.opacity = '0.5';
+        button.style.cursor = 'not-allowed';
+    } else {
+        button.addEventListener('click', async () => {
+            console.log('Zap button clicked');
+            const defaultAmount = await getDefaultAmount();
+            if (isWebLNAvailable && defaultAmount) {
+                console.log('WebLN available, proceeding with payment');
+                window.postMessage({ type: 'ZAP_PAYMENT_REQUEST', lnurl: lnurl, amount: defaultAmount }, '*');
+            } else {
+                console.log('Showing modal');
+                createModal(lnurl, croppedDataUrl, isWebLNAvailable, (amount) => {
+                    window.postMessage({ type: 'ZAP_PAYMENT_REQUEST', lnurl: lnurl, amount: amount }, '*');
+                });
+            }
+        });
+    }
 
-  const likeButton = post.querySelector('button[data-testid="like"]');
-  if (likeButton) {
-      const likeButtonDiv = likeButton.parentNode;
-      const zapButtonDiv = document.createElement('div');
-      zapButtonDiv.className = likeButtonDiv.className;
-      zapButtonDiv.appendChild(button);
-      likeButtonDiv.parentNode.insertBefore(zapButtonDiv, likeButtonDiv.nextSibling);
-      console.log('Zap button added after like button');
-      return true;
-  } else {
-      console.error('Like button not found in tweet');
-      return false;
-  }
+    const likeButton = post.querySelector('button[data-testid="like"]');
+    if (likeButton) {
+        const likeButtonDiv = likeButton.parentNode;
+        const zapButtonDiv = document.createElement('div');
+        zapButtonDiv.className = likeButtonDiv.className;
+        zapButtonDiv.appendChild(button);
+        likeButtonDiv.parentNode.insertBefore(zapButtonDiv, likeButtonDiv.nextSibling);
+        console.log('Zap button added after like button');
+        return true;
+    } else {
+        console.error('Like button not found in tweet');
+        return false;
+    }
 }
 
 let debounceTimer;

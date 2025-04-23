@@ -1,5 +1,24 @@
 console.log('weblnDetector.js running');
 
+let weblnAvailable = false;
+
+function checkWebLN() {
+    if (window.webln) {
+        if (!weblnAvailable) {
+            weblnAvailable = true;
+            window.postMessage({ type: 'WEBLN_STATUS', available: true }, '*');
+            console.log('WebLN detected');
+        }
+    } else {
+        if (weblnAvailable) {
+            weblnAvailable = false;
+            window.postMessage({ type: 'WEBLN_STATUS', available: false }, '*');
+            console.log('WebLN not available');
+        }
+        setTimeout(checkWebLN, 500);
+    }
+}
+
 // Helper function to request a fetch from the content script
 async function fetchFromContentScript(url) {
     return new Promise((resolve, reject) => {
@@ -54,7 +73,7 @@ async function resolveToInvoice(lnurl, amount) {
     return invoiceData.pr;
 }
 
-// Function to perform WebLN actions in the webpage's context
+// Function to perform WebLNAction in the webpage's context
 async function performWebLNAction(action, data) {
     if (!window.webln) {
         console.error('WebLN not available');
@@ -97,23 +116,12 @@ window.addEventListener('message', function(event) {
     }
 });
 
-// Check for WebLN availability periodically
-function checkWebLN() {
-    if (window.webln) {
-        console.log('WebLN detected');
-    } else {
-        console.log('WebLN not yet available, retrying...');
-        setTimeout(checkWebLN, 500); // Retry every 500ms
-    }
-}
-
-// Start checking for WebLN
-checkWebLN();
-
-// Listen for the webln:ready event (optional, for some providers)
 window.addEventListener('webln:ready', function() {
     console.log('webln:ready event fired');
     if (window.webln) {
-        console.log('WebLN confirmed available after webln:ready');
+        weblnAvailable = true;
+        window.postMessage({ type: 'WEBLN_STATUS', available: true }, '*');
     }
 });
+
+checkWebLN();
