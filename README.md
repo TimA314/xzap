@@ -28,6 +28,8 @@ Privacy: XZap does not collect personal data. All payments are handled securely 
 Get started with XZap today and bring Bitcoin payments to X.com! ⚡
 
 
+This extension only works with x.com (not the app) I Will be seeing what i can do about integrating into the app too. Donations are helpful as i am doing this in my spare time. 
+
 - Open source (MIT)
 - Zap away!
 
