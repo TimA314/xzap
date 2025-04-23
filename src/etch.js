@@ -97,29 +97,12 @@ document.addEventListener('DOMContentLoaded', () => {
           text: qrText,
           width: 100,
           height: 100,
-          colorDark: "rgba(0, 0, 0, 0.5)", // Black QR code with 50% opacity
-          colorLight: "rgba(255, 255, 255, 0.5)", // White background with 50% opacity
+          colorDark: "rgba(255, 69, 0)", // Darker orange color
+          colorLight: "white", // White background
+          margin: 2,
           correctLevel: QRCode.CorrectLevel.H, // High error correction
         });
 
-        // Add a lightning symbol in the middle of the QR code
-        qrCode._oDrawing._el.appendChild((() => {
-          const lightningIcon = document.createElement('div');
-          lightningIcon.style.position = 'absolute';
-          lightningIcon.style.top = '50%';
-          lightningIcon.style.left = '50%';
-          lightningIcon.style.transform = 'translate(-50%, -50%)';
-          lightningIcon.style.width = '30px';
-          lightningIcon.style.height = '30px';
-            lightningIcon.innerHTML = `
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="orange" width="30" height="30">
-              <path d="M13 2L3 14h7v8l10-12h-7z"/>
-            </svg>
-            `;
-          lightningIcon.style.backgroundSize = 'contain';
-          lightningIcon.style.backgroundRepeat = 'no-repeat';
-          return lightningIcon;
-        })());
         qrCode.makeCode(lnurl);
 
         // Step 4: Wait for rendering and overlay the QR code
