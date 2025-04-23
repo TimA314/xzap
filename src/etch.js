@@ -97,9 +97,8 @@ document.addEventListener('DOMContentLoaded', () => {
           text: qrText,
           width: 100,
           height: 100,
-          colorDark: "rgba(255, 69, 0)", // Darker orange color
+          colorDark: "rgba(25, 10, 0)", // Almost black with a hint of orange
           colorLight: "white", // White background
-          margin: 2,
           correctLevel: QRCode.CorrectLevel.H, // High error correction
         });
 
@@ -108,11 +107,25 @@ document.addEventListener('DOMContentLoaded', () => {
         // Step 4: Wait for rendering and overlay the QR code
         setTimeout(() => {
           const qrCanvas = qrContainer.querySelector('canvas');
-          if (!qrCanvas) {
+            if (!qrCanvas) {
             console.error('QR code canvas not found');
             alert('Error generating QR code: Canvas not found');
             return;
-          }
+            }
+
+          // Add an orange border around the QR code
+          const borderCanvas = document.createElement('canvas');
+          const borderSize = 10; // Border thickness
+          borderCanvas.width = qrCanvas.width + borderSize * 2;
+          borderCanvas.height = qrCanvas.height + borderSize * 2;
+          const borderCtx = borderCanvas.getContext('2d');
+
+          // Fill the border with orange color
+          borderCtx.fillStyle = 'orange';
+          borderCtx.fillRect(0, 0, borderCanvas.width, borderCanvas.height);
+
+          // Draw the QR code onto the bordered canvas
+          borderCtx.drawImage(qrCanvas, borderSize, borderSize);
 
           const qrX = 150; // 5-pixel margin from the left
           const qrY = canvas.height - qrCanvas.height - 10; // 5-pixel margin from the bottom
