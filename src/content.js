@@ -1,5 +1,33 @@
 const processedPosts = new Set();
 
+// Listener for fetch requests from weblnDetector.js
+window.addEventListener('message', async function(event) {
+    if (event.data.type === 'FETCH_URL') {
+        const { requestId, url } = event.data;
+        try {
+            const response = await fetch(url);
+            const data = await response.json();
+            window.postMessage({ type: 'FETCH_URL_RESPONSE', requestId, success: true, data }, '*');
+        } catch (error) {
+            window.postMessage({ type: 'FETCH_URL_RESPONSE', requestId, success: false, error: error.message }, '*');
+        }
+    }
+});
+
+async function getDefaultAmount() {
+    return new Promise((resolve) => {
+        chrome.storage.local.get(['defaultAmount'], (result) => {
+            resolve(result.defaultAmount || null);
+        });
+    });
+}
+
+function saveDefaultAmount(amount) {
+    chrome.storage.local.set({ defaultAmount: amount }, () => {
+        console.log('Default amount saved:', amount);
+    });
+}
+
 function getTweetElements() {
     console.log('Fetching tweet elements');
     const tweets = Array.from(document.querySelectorAll('article[role="article"]'))
@@ -69,7 +97,6 @@ async function scanImageForLNURL(imageUrl) {
 
                 if (xStart < 0 || yStart < 0 || xStart + qrSize > img.width || yStart + qrSize > img.height) {
                     console.error('QR code region out of bounds');
-                    console.error(`Bounds check failed: xStart=${xStart}, yStart=${yStart}, qrSize=${qrSize}, imgWidth=${img.width}, imgHeight=${img.height}`);
                     resolve(null);
                     return;
                 }
@@ -98,7 +125,7 @@ async function scanImageForLNURL(imageUrl) {
                 console.log('Threshold applied, sample pixel:', croppedImageData.data[0]);
 
                 const croppedDataUrl = croppedCanvas.toDataURL();
-                console.log('Cropped image data URL:', croppedDataUrl);
+                console.log('Cropped image data URL generated');
 
                 console.log('Attempting QR code detection with jsQR');
                 const code = jsQR(croppedImageData.data, qrSize, qrSize);
@@ -106,7 +133,7 @@ async function scanImageForLNURL(imageUrl) {
                     console.log('QR code detected, raw data:', code.data);
                     if (code.data.startsWith('lnurl') || code.data.includes('@') || code.data.startsWith('lnbc')) {
                         console.log('Valid LNURL found:', code.data);
-                        resolve(code.data);
+                        resolve({ lnurl: code.data, croppedDataUrl });
                     } else {
                         console.log('QR code data does not match LNURL patterns:', code.data);
                         resolve(null);
@@ -123,7 +150,6 @@ async function scanImageForLNURL(imageUrl) {
         });
     } catch (error) {
         console.error('Exception during image scan:', error.message);
-        console.error('Stack trace:', error.stack);
         return null;
     }
 }
@@ -162,79 +188,95 @@ function calculateAverageBrightness(imageData) {
     const data = imageData.data;
     let sum = 0;
     for (let i = 0; i < data.length; i += 4) {
-        sum += data[i]; // Grayscale, so r = g = b
+        sum += data[i];
     }
     return sum / (data.length / 4);
 }
 
 function injectScript() {
-  const script = document.createElement('script');
-  script.src = chrome.runtime.getURL('weblnDetector.js');
-  document.body.appendChild(script);
-  console.log('weblnDetector.js injected');
+    const script = document.createElement('script');
+    script.src = chrome.runtime.getURL('weblnDetector.js');
+    document.body.appendChild(script);
+    console.log('weblnDetector.js injected');
 }
 
 // Listen for responses from weblnDetector.js
 window.addEventListener('message', function(event) {
-  if (event.data.type === 'WEBLN_ACTION_RESPONSE') {
-    if (event.data.success) {
-      console.log('WebLN action successful:', event.data.result);
-      alert('Zap payment successful!');
-    } else {
-      console.error('WebLN action failed:', event.data.error);
-      alert('Payment failed: ' + event.data.error);
+    if (event.data.type === 'WEBLN_ACTION_RESPONSE') {
+        if (event.data.success) {
+            console.log('WebLN action successful:', event.data.result);
+        } else {
+            console.error('WebLN action failed:', event.data.error);
+            alert('Payment failed: ' + event.data.error);
+        }
+    } else if (event.data.type === 'WEBLN_UNAVAILABLE') {
+        console.error('WebLN not available');
     }
-  } else if (event.data.type === 'WEBLN_UNAVAILABLE') {
-    console.error('WebLN not available');
-    alert('WebLN not detected. Please ensure a WebLN provider (e.g., Alby) is installed.');
-  }
 });
 
-function addZapButton(post, lnurl) {
+async function processTweets() {
+  console.log('Processing tweets');
+  const tweets = getTweetElements();
+  console.log(`Processing ${tweets.length} tweets`);
+  for (const tweet of tweets) {
+      if (processedPosts.has(tweet)) {
+          continue;
+      }
+      const imageUrl = getProfileImageUrl(tweet);
+      console.log('Starting LNURL scan for tweet');
+      const result = await scanImageForLNURL(imageUrl);
+      console.log('LNURL scan completed, result:', result);
+      const lnurl = result ? result.lnurl : null;
+      const croppedDataUrl = result ? result.croppedDataUrl : null;
+      if (addZapButton(tweet, lnurl, croppedDataUrl)) {
+          tweet.setAttribute('data-zap-processed', 'true');
+          processedPosts.add(tweet);
+      }
+  }
+  console.log('Tweet processing complete');
+}
+
+function addZapButton(post, lnurl, croppedDataUrl) {
   console.log(`Adding zap button with LNURL: ${lnurl || 'none'}`);
   const button = document.createElement('button');
   button.textContent = '⚡ Zap';
-  button.style.margin = '5px';
+  button.className = 'css-175oi2r r-1777fci r-bt1l66 r-bztko3 r-lrvibr r-1loqt21 r-1ny4l3l';
+  button.style.color = 'rgb(113, 118, 123)';
   button.disabled = !lnurl;
+  button.title = lnurl ? 'Zap this post' : 'No LNURL found';
 
-  if (lnurl) {
-    button.addEventListener('click', () => {
-      console.log('Zap button clicked, sending ZAP_PAYMENT_REQUEST');
-      window.postMessage({ type: 'ZAP_PAYMENT_REQUEST', lnurl: lnurl }, '*');
-    });
-  }
-
-  const actionBar = post.querySelector('div[role="group"]');
-  if (actionBar) {
-    actionBar.appendChild(button);
-    console.log('Zap button added to tweet');
+  if (!lnurl) {
+      button.style.opacity = '0.5';
+      button.style.cursor = 'not-allowed';
   } else {
-    console.error('Action bar not found in tweet');
+      button.addEventListener('click', async () => {
+          console.log('Zap button clicked');
+          const defaultAmount = await getDefaultAmount();
+          if (window.webln && defaultAmount) {
+              console.log('WebLN available, proceeding with payment');
+              window.postMessage({ type: 'ZAP_PAYMENT_REQUEST', lnurl: lnurl, amount: defaultAmount }, '*');
+          } else {
+              console.log('Showing modal');
+              createModal(lnurl, croppedDataUrl, (amount) => {
+                  window.postMessage({ type: 'ZAP_PAYMENT_REQUEST', lnurl: lnurl, amount: amount }, '*');
+              });
+          }
+      });
   }
-}
 
-// Inject the script when the content script runs
-injectScript();
-async function processTweets() {
-    console.log('Processing tweets');
-    const tweets = getTweetElements();
-    console.log(`Processing ${tweets.length} tweets`);
-    for (const tweet of tweets) {
-        if (processedPosts.has(tweet)) {
-            console.log('Tweet already processed, skipping');
-            continue;
-        }
-        console.log('Marking tweet as processed');
-        tweet.setAttribute('data-zap-processed', 'true');
-        processedPosts.add(tweet);
-
-        const imageUrl = getProfileImageUrl(tweet);
-        console.log('Starting LNURL scan for tweet');
-        const lnurl = await scanImageForLNURL(imageUrl);
-        console.log('LNURL scan completed, result:', lnurl);
-        addZapButton(tweet, lnurl);
-    }
-    console.log('Tweet processing complete');
+  const likeButton = post.querySelector('button[data-testid="like"]');
+  if (likeButton) {
+      const likeButtonDiv = likeButton.parentNode;
+      const zapButtonDiv = document.createElement('div');
+      zapButtonDiv.className = likeButtonDiv.className;
+      zapButtonDiv.appendChild(button);
+      likeButtonDiv.parentNode.insertBefore(zapButtonDiv, likeButtonDiv.nextSibling);
+      console.log('Zap button added after like button');
+      return true;
+  } else {
+      console.error('Like button not found in tweet');
+      return false;
+  }
 }
 
 let debounceTimer;
@@ -251,3 +293,4 @@ observer.observe(document.body, { childList: true, subtree: true });
 
 console.log('Initial tweet processing');
 processTweets();
+injectScript();

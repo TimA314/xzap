@@ -25,7 +25,6 @@
     }
   ],
   "host_permissions": [
-    "https://x.com/*",
-    "https://pbs.twimg.com/*"
+    "<all_urls>"
   ]
 }
