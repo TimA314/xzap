@@ -167,61 +167,54 @@ function calculateAverageBrightness(imageData) {
     return sum / (data.length / 4);
 }
 
-function addZapButton(post, lnurl) {
-    console.log(`Adding zap button with LNURL: ${lnurl || 'none'}`);
-    const button = document.createElement('button');
-    button.textContent = '⚡ Zap';
-    button.style.margin = '5px';
-    button.disabled = !lnurl;
-    console.log('Zap button created, disabled:', button.disabled);
-
-    if (lnurl) {
-        console.log('Attaching click event listener to zap button');
-        button.addEventListener('click', async () => {
-            try {
-                console.log('Zap button clicked, checking WebLN availability');
-                if (window.webln) {
-                    console.log('Enabling WebLN');
-                    await window.webln.enable();
-                    console.log('Sending payment with LNURL:', lnurl);
-                    const result = await window.webln.sendPayment(lnurl);
-                    console.log('Payment successful:', result);
-                    alert('Zap payment successful!');
-                } else {
-                    console.log('WebLN not available, displaying modal');
-                    const imageUrl = getProfileImageUrl(post);
-                    if (imageUrl) {
-                        const response = await new Promise((resolve) => {
-                            chrome.runtime.sendMessage({ type: 'fetchImage', url: imageUrl }, resolve);
-                        });
-                        if (response && response.dataUrl) {
-                            createModal(lnurl, response.dataUrl);
-                        } else {
-                            console.error('Failed to fetch image for modal');
-                            alert('Failed to load image. Please try again.');
-                        }
-                    } else {
-                        console.error('No profile image found for modal');
-                        alert('No profile image found. Please try again.');
-                    }
-                }
-            } catch (error) {
-                console.error('Payment failed:', error.message);
-                alert('Payment failed: ' + error.message);
-            }
-        });
-    }
-
-    const actionBar = post.querySelector('div[role="group"]');
-    if (actionBar) {
-        console.log('Appending zap button to action bar');
-        actionBar.appendChild(button);
-        console.log('Zap button added to tweet');
-    } else {
-        console.error('Action bar not found in tweet');
-    }
+function injectScript() {
+  const script = document.createElement('script');
+  script.src = chrome.runtime.getURL('weblnDetector.js');
+  document.body.appendChild(script);
+  console.log('weblnDetector.js injected');
 }
 
+// Listen for responses from weblnDetector.js
+window.addEventListener('message', function(event) {
+  if (event.data.type === 'WEBLN_ACTION_RESPONSE') {
+    if (event.data.success) {
+      console.log('WebLN action successful:', event.data.result);
+      alert('Zap payment successful!');
+    } else {
+      console.error('WebLN action failed:', event.data.error);
+      alert('Payment failed: ' + event.data.error);
+    }
+  } else if (event.data.type === 'WEBLN_UNAVAILABLE') {
+    console.error('WebLN not available');
+    alert('WebLN not detected. Please ensure a WebLN provider (e.g., Alby) is installed.');
+  }
+});
+
+function addZapButton(post, lnurl) {
+  console.log(`Adding zap button with LNURL: ${lnurl || 'none'}`);
+  const button = document.createElement('button');
+  button.textContent = '⚡ Zap';
+  button.style.margin = '5px';
+  button.disabled = !lnurl;
+
+  if (lnurl) {
+    button.addEventListener('click', () => {
+      console.log('Zap button clicked, sending ZAP_PAYMENT_REQUEST');
+      window.postMessage({ type: 'ZAP_PAYMENT_REQUEST', lnurl: lnurl }, '*');
+    });
+  }
+
+  const actionBar = post.querySelector('div[role="group"]');
+  if (actionBar) {
+    actionBar.appendChild(button);
+    console.log('Zap button added to tweet');
+  } else {
+    console.error('Action bar not found in tweet');
+  }
+}
+
+// Inject the script when the content script runs
+injectScript();
 async function processTweets() {
     console.log('Processing tweets');
     const tweets = getTweetElements();

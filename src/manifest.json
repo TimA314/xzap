@@ -14,12 +14,13 @@
   "content_scripts": [
     {
       "matches": ["*://*.x.com/*"],
-      "js": ["modal.js", "content.js", "libs/jsQR.js", "qrcode.min.js"]
+      "js": ["modal.js", "content.js", "libs/jsQR.js", "qrcode.min.js"],
+      "run_at": "document_end"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["etch.js", "decode.js", "libs/jsQR.js"],      
+      "resources": ["etch.js", "decode.js", "libs/jsQR.js", "weblnDetector.js"],      
       "matches": ["<all_urls>"]
     }
   ],
