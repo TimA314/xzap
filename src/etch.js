@@ -60,6 +60,12 @@ document.addEventListener('DOMContentLoaded', () => {
   etchButton.addEventListener('click', () => {
     console.log('etch.js: Etch button clicked');
     const lnurl = lnurlInput.value.trim();
+    const lnurlRegex = /^(lnurl[a-z0-9]+|[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}|lnbc[a-zA-Z0-9]+)$/i; // Validate LNURL, Lightning Address, or Lightning Invoice format
+    if (!lnurlRegex.test(lnurl)) {
+      alert('Invalid Lightning Address. Please enter a valid LNURL.');
+      return;
+    }
+
     if (!lnurl || !selectedFileDataUrl) {
       alert('Please provide a Lightning Address and select an image.');
       return;
