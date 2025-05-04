@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "XZap",
   "version": "1.0",
-  "permissions": ["activeTab", "scripting", "storage"],
+  "permissions": ["storage"],
   "description": "A Chrome extension for X.com",
   "action": {
     "default_popup": "popup.html",
